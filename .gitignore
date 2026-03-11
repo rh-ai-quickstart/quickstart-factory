@@ -1,0 +1,30 @@
+# macOS
+.DS_Store
+
+# Editor
+.idea/
+.vscode/
+
+# Python
+__pycache__/
+.venv/
+.poetry-cache/
+
+# Local secrets and env
+.env
+.env.*
+*.key
+*.pem
+
+# Local AI client runtime/config
+.claude/
+.codex/
+.cursor/
+.gemini/
+
+# Generated output (blog drafts, reports, etc.)
+data/
+
+# Temporary files
+brain.ai
+brain.code-workspace
