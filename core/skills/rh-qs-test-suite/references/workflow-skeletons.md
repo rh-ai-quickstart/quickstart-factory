@@ -1,0 +1,247 @@
+# Workflow skeletons
+
+Trimmed patterns from `it-self-service-agent`. Replace names, makes, and namespaces for `<slug>`.
+
+## Shared PR preamble
+
+```yaml
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+env:
+  UV_VERSION: "0.8.9"   # must match Makefile
+```
+
+## pr-checks.yml — quality + unit + helm
+
+```yaml
+name: Pull Request - Quality Checks & Unit Tests
+
+jobs:
+  code-quality-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: astral-sh/setup-uv@v5
+        with:
+          version: ${{ env.UV_VERSION }}
+      - run: make check-uv-version
+      - run: make check-lockfiles
+      - run: make deps-all
+      - run: make lint
+
+  helm-export-validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/setup-helm@v4
+        with:
+          version: v3.17.0
+      - uses: bmuschko/setup-kubeconform@v1
+      - run: make helm-export-validate-demo
+        env:
+          NAMESPACE: ci-demo
+          HF_TOKEN: mock_hf_token_for_ci
+
+  pull-request-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          version: ${{ env.UV_VERSION }}
+      - run: make deps-all
+      - run: make test-all
+```
+
+## pr-e2e-tests.yml — Kind + evals (`pull_request_target`)
+
+```yaml
+name: Pull Request - Integration + End to End Tests
+
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened]
+  workflow_dispatch:
+  schedule:
+    - cron: '0 2 * * *'
+
+env:
+  UV_VERSION: "0.8.9"
+  PYTHON_VERSION: "3.12"
+  E2E_NAMESPACE: test
+
+jobs:
+  e2e-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate LLM_API_TOKEN_EVAL secret
+        env:
+          LLM_API_TOKEN: ${{ secrets.LLM_API_TOKEN_EVAL }}
+        run: test -n "$LLM_API_TOKEN"
+
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - uses: ./.github/actions/prepare-runner
+        with:
+          swap-storage: 'false'
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: ${{ env.UV_VERSION }}
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - run: |
+          make oc
+          echo "$GITHUB_WORKSPACE/bin" >> $GITHUB_PATH
+
+      - uses: ./.github/actions/kind
+        with:
+          namespace: ${{ env.E2E_NAMESPACE }}
+          llm: ${{ vars.LLM_INFERENCE }}
+          llm_id: ${{ vars.LLM_ID_INFERENCE }}
+          llm_url: ${{ vars.LLM_URL_INFERENCE }}
+        env:
+          LLM_API_TOKEN: ${{ secrets.LLM_API_TOKEN_INFERENCE }}
+
+      - run: kubectl config set-context --current --namespace=${{ env.E2E_NAMESPACE }}
+
+      - run: make test-integration NAMESPACE=${{ env.E2E_NAMESPACE }}
+
+      - run: make sync-evaluations
+
+      - run: make test-short-eval
+        if: always()
+        env:
+          LLM_URL: ${{ vars.LLM_URL_EVAL }}
+          LLM_API_TOKEN: ${{ secrets.LLM_API_TOKEN_EVAL }}
+
+      - uses: ./.github/actions/inspect
+        if: failure()
+        with:
+          artifactPrefix: <slug>
+
+      - name: Upload evaluations artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: evaluations-results-${{ github.run_id }}
+          path: evaluations-results-${{ github.run_id }}.tar.gz
+          retention-days: 30
+```
+
+Add tarball creation step before upload (see `pr-e2e-tests.yml` in it-self-service-agent).
+
+## pr-branch-check.yml — dev → main
+
+```yaml
+name: Require dev branch for main PRs
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  validate-pr-branch:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          PR_SOURCE_BRANCH="${{ github.event.pull_request.head.ref }}"
+          PR_SOURCE_REPO="${{ github.event.pull_request.head.repo.full_name }}"
+          TARGET_REPO="${{ github.repository }}"
+          if [ "${PR_SOURCE_REPO}" != "${TARGET_REPO}" ]; then
+            echo "::error::PR must come from the same repository"
+            exit 1
+          fi
+          if [ "${PR_SOURCE_BRANCH}" = "dev" ] || [[ "${PR_SOURCE_BRANCH}" =~ ^dev-[a-f0-9]+$ ]]; then
+            echo "OK"
+          else
+            echo "::error::PR must come from dev or dev-<commit>"
+            exit 1
+          fi
+```
+
+## build-and-push.yaml
+
+```yaml
+name: Build and push images
+
+on:
+  push:
+    branches: [main, dev]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.sha }}
+  cancel-in-progress: true
+
+env:
+  REGISTRY: quay.io/rh-ai-quickstart
+  UV_VERSION: "0.8.9"
+  PYTHON_VERSION: "3.12"
+
+jobs:
+  build-and-push:
+    if: github.repository_owner == 'rh-ai-quickstart'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - id: version
+        run: |
+          BASE_VERSION=$(make version)
+          # tag logic: main → latest, dev → dev tag, etc.
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: quay.io
+          username: ${{ secrets.QUAY_USERNAME }}
+          password: ${{ secrets.QUAY_PASSWORD }}
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: ${{ env.UV_VERSION }}
+          python-version: ${{ env.PYTHON_VERSION }}
+      - run: |
+          for version in ${{ steps.version.outputs.versions }}; do
+            VERSION="${version}" make build-all-images
+            VERSION="${version}" make push-all-images
+          done
+```
+
+## Evaluations artifact tarball (reusable snippet)
+
+```yaml
+- name: Create evaluations tarball
+  if: always()
+  run: |
+    if [ -d "evaluations/results" ]; then
+      tar -czf evaluations-results-${{ github.run_id }}.tar.gz -C evaluations results/
+    else
+      mkdir -p evaluations/results
+      echo "No evaluation results" > evaluations/results/README.txt
+      tar -czf evaluations-results-${{ github.run_id }}.tar.gz -C evaluations results/
+    fi
+```
+
+## Path filters (monorepo)
+
+For smaller repos, add `paths` filters like `ai-supply-chain-agent`:
+
+```yaml
+on:
+  pull_request:
+    paths:
+      - "packages/**"
+      - "deploy/**"
+      - ".github/**"
+```
+
+Use when PR noise from docs-only changes should not run Kind E2E.

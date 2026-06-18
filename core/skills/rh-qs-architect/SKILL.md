@@ -32,6 +32,7 @@ PRD exists from `rh-qs-discovery` at `data/prds/<slug>.md`
 - [ ] 5. Generate Mermaid architecture diagram
 - [ ] 6. Define testing strategy per component
 - [ ] 7. Write design document
+- [ ] 8. Audit and make edits based on design document for Security Considerations
 ```
 
 ## Component include/exclude matrix
@@ -56,7 +57,7 @@ Present as defaults; override only when PRD requires it.
 | Layer | Default |
 |-------|---------|
 | Frontend | React 19, TypeScript, Vite, TanStack Router/Query |
-| Backend | Python 3.12+, FastAPI, Pydantic v2, SQLAlchemy 2 async |
+| Backend | UV, Python 3.12+, FastAPI, Pydantic v2, SQLAlchemy 2 async |
 | Database | PostgreSQL |
 | Vector DB | pgvector |
 | LLM orchestration | Llama Stack (optional — confirm) |
@@ -70,11 +71,13 @@ Present as defaults; override only when PRD requires it.
 
 | Level | Tool | Scope | Runs when |
 |-------|------|-------|-----------|
-| Unit (Python) | pytest | Routes, schemas, services | Every PR (ci.yaml) |
+| Unit (Python) | pytest | Routes, schemas, services | Every PR (`pr-checks` / `ci.yaml`) |
 | Unit (TypeScript) | vitest | Components, hooks | Every PR |
-| Integration | pytest + compose | API + DB + services | Merge to main |
-| E2E | Playwright | Full user journeys | Merge or manual |
-| Helm | helm lint + template | Chart renders | Every PR |
+| Integration | pytest + Kind/compose | API + DB + in-cluster services | PR E2E workflow (`rh-qs-test-suite`) |
+| E2E / LLM evals | evaluations harness | Agent quality, RAG responses | `pull_request_target` or nightly |
+| Helm | helm lint + kubeconform | Exported manifests valid | Every PR |
+
+Document which profile (minimal / standard / agent+evals / release train) applies—see **`rh-qs-test-suite`** references.
 
 ## Output
 
@@ -101,3 +104,4 @@ When design is approved → **`rh-qs-scaffold`**
 
 - [ai-architecture-charts mapping](./references/ai-architecture-charts.md)
 - [Architecture diagram guide](./references/diagram-guide.md)
+- [GitHub workflow catalog](../rh-qs-test-suite/references/workflow-catalog.md)

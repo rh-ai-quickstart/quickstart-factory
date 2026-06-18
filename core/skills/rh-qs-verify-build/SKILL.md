@@ -74,8 +74,8 @@ make test
 - Pipeline: chunk → embed → write to pgvector
 
 ### CI/CD (if in design/PRD)
-- ensure passing Github actions
-- ensure all actions and workflows pass
+- Workflows from **`rh-qs-test-suite`** are green on a test PR
+- Branch protection required checks match workflow job names
 
 ---
 

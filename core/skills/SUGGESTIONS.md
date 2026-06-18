@@ -1,0 +1,24 @@
+ Ask the use where they want to put the features requests and store issues. 
+	- [ ] Use https://github.com/opendatahub-io/rfe-creator 
+	- [ ] Partners may not have this but lets take a look ^ 
+- [ ] https://github.com/opendatahub-io/strat-creator
+- [ ] Biggest Gap 
+	- [ ] Validation of the actual quickstart. Maybe a verify step?
+	- [ ] What permissions we want to give to the Agent? We need some type of guard rails with minimal access required to compelte step.
+- [ ] Maybe we should move the document back and have verification step, then double check the documentation to make sure its accurate. 
+- [ ] MCP Server would be introduced to bridge Claude to OpenShift
+	- [ ] Can specify which tools can be used/allowed. 
+	- [ ] Possible our own MCP?
+	- [ ] Claude may work around tools so we need to be clear that we cannot kubectl.
+- [ ] Security should be split
+	- [ ] Basic security - Can it perform action on cluster?
+	- [ ] Making actual application secure ( Password not in plain text, RBAC, etc.  )
+		- [ ] Look for openshift skills already created. 
+	- [ ] Skill for adding saftey and security/prompt guard.
+	- [ ] User permission and context. 
+	- [ ] Solve issue by using Users that only have access. 
+- [ ] Deployment: Was not automatic, but had to specify. 
+	- [ ] Recommendation initate sub-agent. 
+	- [ ] Then have docs created after successful deployment. 
+- [ ] No OC Command executed. Only via helm chart. 
+- [ ] We can add in skill for updating versions, any package, 

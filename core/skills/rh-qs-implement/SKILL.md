@@ -5,8 +5,7 @@ description: Implement a working AI Quickstart vertical slice from an approved d
 
 # rh-qs-implement
 
-**Category:** `implementation/`  
-**Replaces:** rh-qs-backend-implementation, rh-qs-frontend-implementation, rh-qs-implementation-planner
+**Category:** `implementation/`
 
 ## Trigger
 

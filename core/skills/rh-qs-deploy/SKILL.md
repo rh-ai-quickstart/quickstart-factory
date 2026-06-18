@@ -5,8 +5,7 @@ description: Deploy configuration for AI Quickstarts. Wires ai-architecture-char
 
 # rh-qs-deploy
 
-**Category:** `deployment/`  
-**Replaces:** rh-qs-helm-add-llamastack, rh-qs-helm-add-minio, rh-qs-local-deployment, rh-qs-openshift-deployment
+**Category:** `deployment/`
 
 ## Trigger
 
@@ -79,7 +78,7 @@ Complete deployment configuration: Helm chart, compose.yml, Containerfiles, and 
 
 ## Next skill
 
-When deploy configs render and health checks pass → **`rh-qs-document`**
+When deploy configs render and health checks pass → **`rh-qs-test-suite`** (if design includes Kind/E2E/evals), then **`rh-qs-verify-build`** and **`rh-qs-document`**
 
 ## References
 

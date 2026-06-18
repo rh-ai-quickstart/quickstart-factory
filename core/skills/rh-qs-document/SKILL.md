@@ -9,7 +9,7 @@ description: Generate README and catalog documentation for AI Quickstarts from t
 
 ## Trigger
 
-Code is deployed and working from `rh-qs-deploy`
+Code is deployed and working from `rh-qs-deploy`; CI workflows from `rh-qs-test-suite` are in place when the design requires them
 
 ## What it does
 

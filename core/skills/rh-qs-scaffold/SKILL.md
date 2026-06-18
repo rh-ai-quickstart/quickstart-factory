@@ -17,7 +17,7 @@ Design document approved from `rh-qs-architect` at `data/designs/<slug>.md`
 1. Creates a local GitHub repository under git users name. 
 2. Configures branch protection: require CI passing, require 1 review, no direct push to main
 3. Creates directory structure based on the design
-4. Sets up GitHub Actions: CI (lint + unit tests on PR), integration tests on merge, deploy workflow
+4. Sets up GitHub Actions: minimal CI (lint + unit tests on PR); full Kind/E2E/evals → **`rh-qs-test-suite`** after deploy
 5. Configures linting: ruff + ruff format (Python), eslint + prettier (TypeScript)
 6. Sets up testing: pytest, vitest, playwright (e2e)
 7. Configures pre-commit hooks: ruff, eslint, type checking
@@ -165,4 +165,5 @@ When scaffold is pushed and CI is green → **`rh-qs-implement`**
 ## References
 
 - [ai-quickstart-template](https://github.com/rh-ai-quickstart/ai-quickstart-template)
+- [it-self-service-agent CI patterns](../rh-qs-test-suite/SKILL.md) — production workflow split (post-deploy)
 - Design doc: `data/designs/<slug>.md`
