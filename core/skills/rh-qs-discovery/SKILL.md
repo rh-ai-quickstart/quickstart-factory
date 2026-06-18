@@ -56,12 +56,13 @@ Ask until every PRD section can be filled:
 ## Workflow
 
 ```
-- [ ] 1. Check backlog for duplicate ideas
-- [ ] 2. Run structured interview (or parse uploaded doc)
-- [ ] 3. Ask gap questions
-- [ ] 4. Map requirements to concrete AI patterns
-- [ ] 5. Write PRD to data/prds/<slug>.md
-- [ ] 6. Confirm with user before rh-qs-architect
+- [ ] 1. Ask where to track this work (see Issue destinations below)
+- [ ] 2. Check backlog for duplicate ideas
+- [ ] 3. Run structured interview (or parse uploaded doc)
+- [ ] 4. Ask gap questions
+- [ ] 5. Map requirements to concrete AI patterns
+- [ ] 6. Write PRD to data/prds/<slug>.md
+- [ ] 7. Confirm with user before rh-qs-architect
 ```
 
 ### Check backlog
@@ -71,6 +72,18 @@ python3 core/skills/gh-backlog-reader/scripts/read_backlog.py --search "<keyword
 ```
 
 If a matching issue exists, link it and ask whether to extend or create a distinct PRD.
+
+### Issue destinations
+
+**Ask the user** where to store feature requests and backlog items before creating issues:
+
+| Destination | Repo / tool | Use when |
+|-------------|-------------|----------|
+| **Quickstart backlog** (default) | `rh-ai-quickstart/ai-quickstart-contrib` | Standard quickstart suggestions — use **`gh-issue-creator`** |
+| **RFE (Request for Enhancement)** | [opendatahub-io/rfe-creator](https://github.com/opendatahub-io/rfe-creator) | Platform or OpenShift AI product feedback; partners may lack access — confirm first |
+| **Strategy / roadmap** | [opendatahub-io/strat-creator](https://github.com/opendatahub-io/strat-creator) | Strategic themes, not a single quickstart implementation |
+
+Record the chosen destination and issue URL in the PRD header when an issue is created.
 
 ## Output
 

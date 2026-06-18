@@ -223,20 +223,15 @@ helm template <release> deploy/helm/<slug> -f deploy/helm/<slug>/values.yaml | g
 helm lint deploy/helm/<slug>
 ```
 
-After install on OpenShift:
+After install on OpenShift, run **`make verify-deploy NAMESPACE=<ns>`**. Embed MinIO health checks inside that Makefile target — agents do not run `oc`/`kubectl` directly.
+
+Example checks for `verify-deploy` (human/CI only):
 
 ```bash
-oc get statefulset,svc,route | grep minio
-oc get pods -l app.kubernetes.io/name=minio
-oc exec -it minio-0 -- curl -sf localhost:9000/minio/health/live
+curl -sf "http://minio.${NAMESPACE}.svc:9000/minio/health/live"
 ```
 
-Optional console (port-forward):
-
-```bash
-oc port-forward svc/minio 9090:9090
-# http://localhost:9090 — login with secret user/password
-```
+Optional console access: document a `make minio-console` port-forward target if needed — do not document raw `oc port-forward` in README without a Makefile wrapper.
 
 Confirm consuming pods use `http://minio:9000` (or fully qualified `minio.<namespace>.svc.cluster.local:9000` cross-namespace).
 

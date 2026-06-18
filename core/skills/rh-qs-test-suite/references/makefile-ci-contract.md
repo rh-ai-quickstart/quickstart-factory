@@ -77,7 +77,8 @@ Examples from it-self-service-agent—replace with design-specific targets:
 | it-self-service-agent style | Quickstart factory layout |
 |----------------------------|---------------------------|
 | Multi-service `build-all-images` | `make build` or per-package Containerfile targets |
-| `helm-install-test` | `deploy/helm/<slug>` with subcharts from `rh-qs-deploy` |
+| `helm-install-test` | Kind E2E |
+| `verify-deploy` | Post-install smoke — gate before `rh-qs-document` |
 | `test-all` | `make test` → turbo/pytest/vitest per design |
 
 Keep target names stable once branch protection references job names tied to those makes.

@@ -114,6 +114,7 @@ Implement these targets (names can alias existing ones):
 | `build-all-images` / `push-all-images` | Kind + build-and-push |
 | `helm-install-test` | Kind E2E |
 | `helm-install-prod` | Nightly prod (optional) |
+| `verify-deploy` | Post-install smoke (required before rh-qs-document) |
 | `sync-evaluations` | E2E with LLM evals |
 | `test-*-integration` | Named integration tests from design |
 
@@ -177,7 +178,7 @@ Open a PR and confirm workflows pass. For `pull_request_target`, validate from a
 
 ## Next skill
 
-When CI workflows are green on a test PR → **`rh-qs-verify-build`** (local + CI parity), then **`rh-qs-document`**
+When CI workflows are green on a test PR → **`rh-qs-verify-deploy`**, then **`rh-qs-document`**
 
 ## References
 

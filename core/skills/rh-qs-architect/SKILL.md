@@ -32,7 +32,7 @@ PRD exists from `rh-qs-discovery` at `data/prds/<slug>.md`
 - [ ] 5. Generate Mermaid architecture diagram
 - [ ] 6. Define testing strategy per component
 - [ ] 7. Write design document
-- [ ] 8. Audit and make edits based on design document for Security Considerations
+- [ ] 8. Run **`rh-qs-secure`** — record Security considerations (cluster access + application security)
 ```
 
 ## Component include/exclude matrix
@@ -92,6 +92,7 @@ Document which profile (minimal / standard / agent+evals / release train) applie
 ## Technology decisions (defaults or overrides)
 ## Testing strategy per component
 ## Repository structure notes
+## Security considerations (from rh-qs-secure)
 ```
 
 Get user approval before `rh-qs-scaffold`.
@@ -104,4 +105,5 @@ When design is approved → **`rh-qs-scaffold`**
 
 - [ai-architecture-charts mapping](./references/ai-architecture-charts.md)
 - [Architecture diagram guide](./references/diagram-guide.md)
+- [Security: rh-qs-secure](../rh-qs-secure/SKILL.md)
 - [GitHub workflow catalog](../rh-qs-test-suite/references/workflow-catalog.md)

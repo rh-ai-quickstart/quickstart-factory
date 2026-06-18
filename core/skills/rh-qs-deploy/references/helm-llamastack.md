@@ -214,12 +214,13 @@ helm template <release> deploy/helm/<slug> -f deploy/helm/<slug>/values.yaml | g
 helm lint deploy/helm/<slug>
 ```
 
-After install on OpenShift:
+After install on OpenShift, run **`make verify-deploy NAMESPACE=<ns>`** (defined in the quickstart Makefile during `rh-qs-deploy`). Do not use raw `oc`/`kubectl` in agent workflows.
+
+Human or CI verification example (inside `verify-deploy` target):
 
 ```bash
-oc get pods -l app.kubernetes.io/name=llamastack
-oc get svc llamastack
-curl -s "http://$(oc get svc llamastack -o jsonpath='{.spec.clusterIP}'):8321/v1/health"
+# Example checks to embed in Makefile verify-deploy — not for agents to run ad hoc
+curl -sf "http://llamastack.${NAMESPACE}.svc:8321/v1/health"
 ```
 
 Confirm API pods reach `http://llamastack:8321` and that the enabled model appears in Llama Stack logs or `/v1/models` when applicable.

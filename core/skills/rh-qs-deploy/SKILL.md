@@ -1,6 +1,6 @@
 ---
 name: rh-qs-deploy
-description: Deploy configuration for AI Quickstarts. Wires ai-architecture-charts Helm subcharts, compose.yml for local dev, Containerfiles, and Makefile deploy targets. Use when implementation works locally from rh-qs-implement.
+description: Deploy configuration for AI Quickstarts. Wires ai-architecture-charts Helm subcharts, compose.yml for local dev, Containerfiles, and Makefile deploy targets. Use when rh-qs-verify-build passes. Live cluster install uses a deployment sub-agent with Helm-only access.
 ---
 
 # rh-qs-deploy
@@ -9,7 +9,13 @@ description: Deploy configuration for AI Quickstarts. Wires ai-architecture-char
 
 ## Trigger
 
-Implementation works locally from `rh-qs-implement` (`make dev`, `make test` pass)
+Local verification passed from **`rh-qs-verify-build`** (`make dev`, `make test`, `make lint` pass)
+
+## Agent guardrails
+
+- **Helm-only on cluster.** All install/upgrade/uninstall is expressed as Makefile targets (`make deploy`, `make undeploy`). Agents do **not** run `oc` or `kubectl`.
+- **Use a deployment sub-agent** for live cluster work: narrow scope, allowlisted `make` targets only. See **`rh-qs-secure`** → [agent-permissions.md](../rh-qs-secure/references/agent-permissions.md).
+- Apply **`rh-qs-secure`** when wiring secrets, ServiceAccounts, and shared platform services (MLflow aliases, `create=false` patterns).
 
 ## What it does
 
@@ -18,9 +24,10 @@ Implementation works locally from `rh-qs-implement` (`make dev`, `make test` pas
 3. Sets up `values.yaml` with enablement flags and model configuration
 4. Configures `compose.yml` for local development with **podman-compose**
 5. Creates **Containerfiles** for each deployable package (multi-stage builds)
-6. Adds Makefile targets: `make dev`, `make deploy`, `make undeploy`
+6. Adds Makefile targets: `make dev`, `make deploy`, `make undeploy`, `make verify-deploy`
 7. Wires application environment variables to in-cluster services
-8. Verifies: `helm lint`, `helm template` renders cleanly, local health checks pass
+8. Verifies locally: `helm lint`, `helm template` renders cleanly, local health checks pass
+9. Hands off live cluster validation to **`rh-qs-verify-deploy`** (after `make deploy`)
 
 ## Workflow
 
@@ -31,8 +38,10 @@ Implementation works locally from `rh-qs-implement` (`make dev`, `make test` pas
 - [ ] 4. Set up compose.yml for local dev
 - [ ] 5. Build/update Containerfiles
 - [ ] 6. Wire env vars to in-cluster services
-- [ ] 7. Add Makefile deploy targets
-- [ ] 8. Verify helm lint + template + local health
+- [ ] 7. Add Makefile deploy targets (including verify-deploy)
+- [ ] 8. Apply rh-qs-secure checklist for secrets and RBAC
+- [ ] 9. Verify helm lint + template + local health
+- [ ] 10. Spawn deployment sub-agent or ask human to run make deploy + make verify-deploy
 ```
 
 ### Helm subcharts
@@ -57,12 +66,15 @@ Document all variables in `.env.example`. **Never** commit real tokens or API ke
 ### Makefile targets
 
 ```bash
-make dev        # podman-compose local stack
-make deploy     # helm upgrade --install to OpenShift (use oc)
-make undeploy   # helm uninstall
+make dev            # podman-compose local stack
+make deploy         # helm upgrade --install (sole cluster install entry point)
+make verify-deploy  # post-install smoke test — required before rh-qs-document
+make undeploy       # helm uninstall
 make helm-lint
 make helm-template
 ```
+
+Do **not** document or use raw `oc`/`kubectl` for install. Verification and docs reference these Makefile targets only.
 
 ## Verification
 
@@ -78,7 +90,7 @@ Complete deployment configuration: Helm chart, compose.yml, Containerfiles, and 
 
 ## Next skill
 
-When deploy configs render and health checks pass → **`rh-qs-test-suite`** (if design includes Kind/E2E/evals), then **`rh-qs-verify-build`** and **`rh-qs-document`**
+When deploy configs render locally → **`rh-qs-test-suite`** (if design includes Kind/E2E/evals), then **`rh-qs-verify-deploy`**, then **`rh-qs-document`**
 
 ## References
 

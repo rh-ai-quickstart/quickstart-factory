@@ -84,6 +84,13 @@ python3 core/skills/gh-backlog-reader/scripts/read_backlog.py --label Acknowledg
 | pipeline-grooming | Groom, prioritize, or categorize the backlog |
 | blog-writer | Generate blog post drafts for completed quickstarts |
 | quickstart-identifier | Identify potential new quickstarts from trends and gaps |
+| rh-qs-secure | Cluster access guardrails and application security (embedded in architect/deploy) |
+| rh-qs-verify-deploy | Post-deploy verification before README documentation |
+| rh-qs-bump-versions | Bump Python, Node, Helm, and image versions |
+
+## Greenfield pipeline (implementation repos)
+
+For building a new quickstart end-to-end, see [docs/NEW_QUICKSTART_SKILLS.md](../docs/NEW_QUICKSTART_SKILLS.md). Key rule: **`rh-qs-document` runs only after `rh-qs-verify-deploy`**. Agents do not run `oc`/`kubectl` — use Helm/Makefile targets per **`rh-qs-secure`**.
 
 ## Skill Execution
 

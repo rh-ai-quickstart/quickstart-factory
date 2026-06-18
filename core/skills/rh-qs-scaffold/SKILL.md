@@ -131,8 +131,9 @@ lint               # ruff + eslint
 test               # unit tests
 test-integration   # integration tests
 test-e2e           # playwright
-deploy             # helm to OpenShift
+deploy             # helm upgrade --install (Helm only — no oc/kubectl in docs)
 undeploy           # helm uninstall
+verify-deploy      # post-install smoke test
 ```
 
 ## Linting configuration
