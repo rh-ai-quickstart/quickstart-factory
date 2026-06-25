@@ -107,16 +107,18 @@ Every skill that produces artifacts validates its output and iterates on failure
 
 Skills pass structured artifacts to each other via temp files, not conversation context.
 
+**Namespace scoping:** All temp files are scoped to a project-specific directory: `/tmp/qs-<slug>/` (e.g., `/tmp/qs-spending-transaction-monitor/`). This prevents name clashes between concurrent runs and preserves context from previous runs when resuming. Note: throughout this document, `/tmp/` paths in skill specs are shown without the `qs-<slug>/` prefix for brevity — all of them are implicitly scoped.
+
 | Transition | Temp File | Format |
 |-----------|----------|--------|
 | Discovery → Architect | `data/prds/<slug>.md` | Markdown (existing) |
-| Architect → Scaffold | `/tmp/architecture-spec.yaml` | YAML |
-| Scaffold → Implement | `/tmp/scaffold-manifest.yaml` | YAML |
-| Implement → Deploy | `/tmp/implementation-manifest.yaml` | YAML |
-| Deploy → Security | `/tmp/deploy-manifest.yaml` | YAML |
-| Security → Debug-and-Deploy | `/tmp/security-report.yaml` | YAML |
-| Debug-and-Deploy → Document | `/tmp/deploy-state.yaml` | YAML |
-| Document → Ship | `/tmp/doc-manifest.yaml` | YAML |
+| Architect → Scaffold | `/tmp/qs-<slug>/architecture-spec.yaml` | YAML |
+| Scaffold → Implement | `/tmp/qs-<slug>/scaffold-manifest.yaml` | YAML |
+| Implement → Deploy | `/tmp/qs-<slug>/implementation-manifest.yaml` | YAML |
+| Deploy → Security | `/tmp/qs-<slug>/deploy-manifest.yaml` | YAML |
+| Security → Debug-and-Deploy | `/tmp/qs-<slug>/security-report.yaml` | YAML |
+| Debug-and-Deploy → Document | `/tmp/qs-<slug>/deploy-state.yaml` | YAML |
+| Document → Ship | `/tmp/qs-<slug>/doc-manifest.yaml` | YAML |
 
 ### Pattern 5: Reasoning Guardrails
 
