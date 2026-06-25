@@ -14,7 +14,7 @@ Production-grade AI agent skill architectures demonstrate significantly more adv
 
 This ADR proposes upgrading all factory skills to this level of sophistication, while preserving the factory's existing strengths (agentskills.io spec compliance, multi-client portability, Makefile-driven validation, `skill-validator` CI).
 
-Additionally, this ADR introduces 3 new pipeline skills and 2 new utility skills to close gaps in the current lifecycle.
+Additionally, this ADR introduces 2 new pipeline skills and 3 new utility skills to close gaps in the current lifecycle.
 
 ## Decision
 
@@ -28,8 +28,8 @@ MAIN PIPELINE (new quickstarts):
  3. rh-qs-scaffold          → GitHub repo
  4. rh-qs-implement         → Working code  (test subagent loop)
  5. rh-qs-deploy            → Helm + compose (deploy review subagent loop)
- 6. rh-qs-debug-and-deploy  → Deployed + validated on OpenShift cluster  [NEW]
- 7. rh-qs-security          → Security verified                          [NEW]
+ 6. rh-qs-security          → Security verified                          [NEW]
+ 7. rh-qs-debug-and-deploy  → Deployed + validated on OpenShift cluster  [NEW]
  8. rh-qs-document          → README + docs
  9. rh-qs-ship              → PR + blog
 
@@ -40,6 +40,7 @@ UTILITY SKILLS:
  - rh-qs-pipeline-grooming     (existing)
  - rh-qs-update                (update released quickstarts)              [NEW]
  - rh-qs-handoff               (continue partial implementations)         [NEW]
+ - rh-qs-extract-knowledge     (mine completed quickstarts for KB)        [NEW]
 ```
 
 ---
@@ -76,10 +77,12 @@ rh-qs-<name>/
 Before any skill modifies files, it generates a YAML spec describing *what* it will do, validates the spec with parallel subagents, refines it based on validation results, and only then hands it to an implementer subagent.
 
 ```
-Analyze → Generate Spec → Validate Spec (parallel) → Refine → Implement → Post-validate
+Analyze → Generate Spec → User Approval → Validate Spec (parallel) → Refine → Implement → Post-validate
 ```
 
 Each spec is written to a temp file (`/tmp/<skill>-spec.yaml`) following a structure defined in `spec-template.md`.
+
+**User-approved acceptance criteria:** For key workflow stages (architecture, implementation, deployment), the spec must include acceptance criteria that the user reviews and approves before implementation begins. These criteria define what "done" looks like and serve as the contract that post-validation checks against. Specs may also reference externally defined test cases, contract tests, or example patterns provided by the user or domain experts.
 
 ### Pattern 3: Feedback Loops with Bounded Iteration
 
@@ -110,9 +113,9 @@ Skills pass structured artifacts to each other via temp files, not conversation 
 | Architect → Scaffold | `/tmp/architecture-spec.yaml` | YAML |
 | Scaffold → Implement | `/tmp/scaffold-manifest.yaml` | YAML |
 | Implement → Deploy | `/tmp/implementation-manifest.yaml` | YAML |
-| Deploy → Debug-and-Deploy | `/tmp/deploy-manifest.yaml` | YAML |
-| Debug-and-Deploy → Security | `/tmp/deploy-state.yaml` | YAML |
-| Security → Document | `/tmp/security-report.yaml` | YAML |
+| Deploy → Security | `/tmp/deploy-manifest.yaml` | YAML |
+| Security → Debug-and-Deploy | `/tmp/security-report.yaml` | YAML |
+| Debug-and-Deploy → Document | `/tmp/deploy-state.yaml` | YAML |
 | Document → Ship | `/tmp/doc-manifest.yaml` | YAML |
 
 ### Pattern 5: Reasoning Guardrails
@@ -122,6 +125,8 @@ Each skill gets a `reasoning-guardrails.md` file — NOT a checklist, but a set 
 ### Pattern 6: Hooks
 
 Project-level hooks for safety and automation, gating destructive commands, enforcing namespace-scoped cluster operations, and auto-formatting edited files.
+
+**Existing implementation:** The [oc-policy-gate](https://github.com/rh-ai-quickstart/oc-policy-gate) repo already implements cluster-operation hooks (namespace gating, destructive command blocking). It lives in a separate repo intentionally so it can be reused across multiple quickstart repos. Integration strategy: use `git subtree` to fetch it into each quickstart project and keep it updated from the upstream source.
 
 ### Pattern 7: Knowledge Base
 
@@ -133,8 +138,8 @@ A shared, tagged, scored knowledge base of reusable patterns mined from complete
 |-------|------|------|-----------|
 | **Pre-implementation** | After spec, before code | Spec correctness: valid chart versions, coherent schemas, valid model IDs | Parallel validator subagents per component |
 | **Post-implementation** | After code, before deploy | Code quality + functional: lint, test, no placeholders, env vars match | Validator subagent + `make lint && make test` |
-| **Deploy-time** | After deploy to cluster | Cluster health: resources running, endpoints responding | Health scanner + debug loop |
-| **Security** | After deploy verified | Compliance: no secrets in code, non-root containers, minimal SCCs, no CVEs | 5 parallel security scanner subagents |
+| **Security** | After deploy config, before cluster deploy | Compliance: no secrets in code, non-root containers, minimal SCCs, no CVEs | 4 parallel security scanner subagents |
+| **Deploy-time** | After security verified, on cluster | Cluster health: resources running, endpoints responding | Health scanner + debug loop |
 
 ---
 
@@ -151,7 +156,9 @@ A shared, tagged, scored knowledge base of reusable patterns mined from complete
 
 **Spec file:** `/tmp/discovery-spec.yaml` (interview plan based on initial input)
 
-**Loop:** Validate → confirm with user (max 2 refinement rounds)
+**Validation:** After drafting the PRD, the agent validates completeness — all required PRD sections are populated (problem statement, target persona, success metrics, scope boundaries, technology constraints). Missing or vague sections are flagged for the user to clarify.
+
+**Loop:** Validate → present PRD draft to user → user refines (no cap on refinement rounds — this is a collaborative, user-driven conversation)
 
 **Guardrails:** Scope creep (don't invent requirements), technology bias (don't pre-decide stack), GPU assumptions.
 
@@ -172,6 +179,8 @@ A shared, tagged, scored knowledge base of reusable patterns mined from complete
 **Knowledge base:** `knowledge-base/components/`, `knowledge-base/deployment-types/`, `knowledge-base/industries/`
 
 **KB scoring:** `knowledge-scorer-prompt.md` scores KB files by relevance using component (+10), deployment type (+5), architecture (+5), industry (+3) tag matching. Returns XML summaries from frontmatter `summary:` fields without loading full files.
+
+**Reuse from rhoai-blueprint-skill-kit:** The `knowledge-scorer-prompt.md`, `architecture-analyzer-prompt.md`, and `chart-selector-prompt.md` subagents share significant overlap with their counterparts in the blueprint kit. Use the blueprint kit's existing prompts as the starting point and adapt for quickstart-specific context (ai-architecture-charts, quickstart scope constraints).
 
 **Loop:** Chart selector → validate charts exist (helm search, ArtifactHub) → refine (max 2 iterations)
 
@@ -209,7 +218,6 @@ This is the most significant change. The implementation skill gains a **two-agen
 | `backend-implementer-prompt.md` | Implement FastAPI backend | Implementation spec | Backend code |
 | `frontend-implementer-prompt.md` | Implement React frontend | Implementation spec | Frontend code |
 | `db-schema-prompt.md` | Generate SQLAlchemy models + Alembic migration | Implementation spec | DB package code |
-| `implementation-validator-prompt.md` | Post-implementation validation | All generated code | Validation report |
 
 **Spec file:** `/tmp/implementation-spec.yaml` (endpoints, schemas, services, DB models, UI routes)
 
@@ -228,11 +236,13 @@ This is the most significant change. The implementation skill gains a **two-agen
 │  main agent (orchestrator)                                  │
 │  → runs tests: make test                                    │
 │  → tests fail                                               │
-│  → main agent fixes CODE ONLY (not tests)                   │
-│  → re-runs tests                                            │
+│  → routes failures to the relevant implementer subagent     │
+│    (backend-implementer or frontend-implementer)            │
+│  → implementer fixes its own code with full context         │
+│  → main agent re-runs tests                                 │
 │  → writes results to /tmp/test-results.yaml                 │
 │                                                             │
-│          ↓ if tests still fail after code fixes              │
+│          ↓ if tests still fail after implementer fixes      │
 │                                                             │
 │  test-writer subagent (resumed)                             │
 │  → reads /tmp/test-results.yaml                             │
@@ -242,14 +252,14 @@ This is the most significant change. The implementation skill gains a **two-agen
 │                                                             │
 │          ↓ back to main agent                               │
 │                                                             │
-│  main agent re-runs tests, fixes code if needed             │
+│  main agent re-runs tests, routes failures if needed        │
 │                                                             │
 │  MAX 3 full loops. After 3: document failures, ask user.    │
 │                                                             │
 └─────────────────────────────────────────────────────────────┘
 ```
 
-**The critical rule:** The main agent fixes CODE to make tests pass. It NEVER modifies tests. Only the test-writer subagent can adjust tests, and only when it determines the tests themselves were wrong (not the code).
+**The critical rule:** The main agent orchestrates the loop but NEVER fixes implementation code directly — it routes failures to the implementer subagent that owns that code (backend-implementer or frontend-implementer), who has the full context to make the right fix. Only the test-writer subagent can adjust tests, and only when it determines the tests themselves were wrong (not the code).
 
 **Parallelism:** Backend + frontend implementer subagents run in parallel. DB schema runs first (dependency).
 
@@ -288,7 +298,10 @@ This is the most significant change. The implementation skill gains a **two-agen
 │  - helm template renders both modes (remote + on-cluster)│
 │  → writes /tmp/deploy-validation.yaml                    │
 │          ↓                                               │
-│  if BLOCKED: main agent fixes → re-validate              │
+│  if BLOCKED: main agent routes failures back to the      │
+│  relevant subagent (deploy-reviewer for Helm/compose,    │
+│  containerfile-generator for Containerfiles) to fix with │
+│  full deploy spec context → re-validate                  │
 │  MAX 3 iterations                                        │
 │                                                          │
 └──────────────────────────────────────────────────────────┘
@@ -300,11 +313,72 @@ This is the most significant change. The implementation skill gains a **two-agen
 
 ---
 
-### 6. rh-qs-debug-and-deploy [NEW]
+### 6. rh-qs-security [NEW]
+
+**Category:** `core/skills/security/rh-qs-security/`
+
+**Purpose:** Comprehensive security verification of the quickstart before cluster deployment. Runs after rh-qs-deploy generates Helm/compose configs so that any security issues requiring code or config changes are caught and fixed *before* deploying to the cluster — ensuring rh-qs-debug-and-deploy always tests the final, security-verified code.
+
+**Subagents:**
+
+| Subagent | Role | Input | Output |
+|----------|------|-------|--------|
+| `code-security-scanner-prompt.md` | Scan for hardcoded secrets, injection vulnerabilities, insecure patterns | Source code | `/tmp/qs-security-code.yaml` |
+| `container-security-reviewer-prompt.md` | Verify Containerfiles (non-root, minimal base, no secrets baked in) | Containerfiles | `/tmp/qs-security-containers.yaml` |
+| `helm-security-reviewer-prompt.md` | Verify Helm charts (RBAC, NetworkPolicies, SCCs, secret management) | Helm chart | `/tmp/qs-security-helm.yaml` |
+| `dependency-scanner-prompt.md` | Check Python/Node dependencies for known CVEs | pyproject.toml, package.json | `/tmp/qs-security-deps.yaml` |
+
+**Workflow:**
+
+```
+Phase 1: Parallel scan (all 4 subagents run simultaneously)
+         → 4 temp files with findings
+
+Phase 2: Main agent aggregates findings into severity categories:
+         - CRITICAL: Must fix before ship (secrets in code, root containers,
+                     CVEs with known exploits)
+         - HIGH:     Should fix (overly permissive RBAC, missing NetworkPolicy)
+         - MEDIUM:   Recommended (dependency updates, hardening suggestions)
+         - LOW:      Informational (best practice deviations)
+
+Phase 3: FIX LOOP for CRITICAL + HIGH findings:
+
+         ┌──────────────────────────────────────────┐
+         │ main agent applies fixes                 │
+         │ re-runs relevant scanner subagent        │
+         │ MAX 3 iterations                         │
+         │ If CRITICAL remains: block ship, ask user│
+         │ If only HIGH remains: warn, allow proceed│
+         └──────────────────────────────────────────┘
+
+Phase 4: Generate security report → /tmp/qs-security-report.yaml
+         Persist to {project}/.rhoai/security-report.yaml
+```
+
+**Security checklist areas:**
+
+- No API keys, tokens, passwords in source code or Helm values
+- Containers run as non-root with arbitrary UID support (filesystem and entrypoint must work with any non-root UID, compatible with OpenShift's arbitrary UID model)
+- Minimal base images (python:slim, UBI, alpine)
+- No `privileged: true` or `allowPrivilegeEscalation: true` without justification
+- SCCs are minimum necessary (prefer `restricted-v2`, document if `anyuid` required)
+- Routes use TLS edge termination
+- CORS is not `*` in production config
+- Dependencies have no known critical CVEs
+- Secrets use Kubernetes Secrets, not ConfigMaps
+- NetworkPolicies restrict pod-to-pod traffic
+
+**Guardrails:** False positive filtering (some warnings are acceptable for demos), compliance context (HIPAA/PCI if PRD specifies), GPU security contexts (some GPU workloads require elevated permissions — document the justification).
+
+---
+
+### 7. rh-qs-debug-and-deploy [NEW]
 
 **Category:** `core/skills/deployment/rh-qs-debug-and-deploy/`
 
-**Purpose:** Take source code and YAML/Helm files from rh-qs-deploy, deploy to an OpenShift cluster, iteratively debug and fix failures, and run E2E verification from TEST-PLAN.md.
+**Purpose:** Take security-verified source code and YAML/Helm files, deploy to an OpenShift cluster, iteratively debug and fix failures, and run E2E verification from TEST-PLAN.md. Runs after rh-qs-security so that all code and config changes from security fixes are included in the cluster deployment.
+
+**Reuse from rhoai-blueprint-skill-kit:** This skill is based on `bp-deploy-and-debug` from the blueprint kit. The core workflow (cluster access validation, deploy, health scan, debug loop, E2E testing) can be adopted with minor adjustments for quickstart-specific context (ai-architecture-charts, quickstart namespace conventions, TEST-PLAN.md format).
 
 **Subagents:**
 
@@ -354,66 +428,6 @@ Phase 6:  Final report → copy to {project}/.rhoai/deploy-report.yaml
 **Output:** `/tmp/qs-deploy-state.yaml` (final health state), `{project}/.rhoai/deploy-report.yaml` (persistent copy)
 
 **Guardrails:** Namespace isolation (every `oc`/`helm` command must use `-n <namespace>`), don't change application intent, dependency-order debugging (fix leaves first then work up), max 3 attempts per resource.
-
----
-
-### 7. rh-qs-security [NEW]
-
-**Category:** `core/skills/security/rh-qs-security/`
-
-**Purpose:** Comprehensive security verification of the quickstart before documentation and shipping. Runs after rh-qs-debug-and-deploy to verify the deployed and working quickstart meets security standards.
-
-**Subagents:**
-
-| Subagent | Role | Input | Output |
-|----------|------|-------|--------|
-| `code-security-scanner-prompt.md` | Scan for hardcoded secrets, injection vulnerabilities, insecure patterns | Source code | `/tmp/qs-security-code.yaml` |
-| `container-security-reviewer-prompt.md` | Verify Containerfiles (non-root, minimal base, no secrets baked in) | Containerfiles | `/tmp/qs-security-containers.yaml` |
-| `helm-security-reviewer-prompt.md` | Verify Helm charts (RBAC, NetworkPolicies, SCCs, secret management) | Helm chart | `/tmp/qs-security-helm.yaml` |
-| `dependency-scanner-prompt.md` | Check Python/Node dependencies for known CVEs | pyproject.toml, package.json | `/tmp/qs-security-deps.yaml` |
-| `cluster-security-auditor-prompt.md` | Audit running deployment (SCCs, network exposure, secret mounting) | Namespace | `/tmp/qs-security-cluster.yaml` |
-
-**Workflow:**
-
-```
-Phase 1: Parallel scan (all 5 subagents run simultaneously)
-         → 5 temp files with findings
-
-Phase 2: Main agent aggregates findings into severity categories:
-         - CRITICAL: Must fix before ship (secrets in code, root containers,
-                     CVEs with known exploits)
-         - HIGH:     Should fix (overly permissive RBAC, missing NetworkPolicy)
-         - MEDIUM:   Recommended (dependency updates, hardening suggestions)
-         - LOW:      Informational (best practice deviations)
-
-Phase 3: FIX LOOP for CRITICAL + HIGH findings:
-
-         ┌──────────────────────────────────────────┐
-         │ main agent applies fixes                 │
-         │ re-runs relevant scanner subagent        │
-         │ MAX 3 iterations                         │
-         │ If CRITICAL remains: block ship, ask user│
-         │ If only HIGH remains: warn, allow proceed│
-         └──────────────────────────────────────────┘
-
-Phase 4: Generate security report → /tmp/qs-security-report.yaml
-         Persist to {project}/.rhoai/security-report.yaml
-```
-
-**Security checklist areas:**
-
-- No API keys, tokens, passwords in source code or Helm values
-- Containers run as non-root (USER 1001)
-- Minimal base images (python:slim, UBI, alpine)
-- No `privileged: true` or `allowPrivilegeEscalation: true` without justification
-- SCCs are minimum necessary (prefer `restricted-v2`, document if `anyuid` required)
-- Routes use TLS edge termination
-- CORS is not `*` in production config
-- Dependencies have no known critical CVEs
-- Secrets use Kubernetes Secrets, not ConfigMaps
-- NetworkPolicies restrict pod-to-pod traffic
-
-**Guardrails:** False positive filtering (some warnings are acceptable for demos), compliance context (HIPAA/PCI if PRD specifies), GPU security contexts (some GPU workloads require elevated permissions — document the justification).
 
 ---
 
@@ -473,8 +487,8 @@ rh-qs-update applies the change:
 
 Then hands off to the pipeline at the detected re-entry point:
   → rh-qs-deploy         (re-validate Helm)
-  → rh-qs-debug-and-deploy (re-deploy to cluster)
   → rh-qs-security       (re-scan)
+  → rh-qs-debug-and-deploy (re-deploy to cluster)
   → rh-qs-document       (update README if needed)
   → rh-qs-ship           (create PR for update)
 ```
@@ -486,7 +500,7 @@ Then hands off to the pipeline at the detected re-entry point:
 | Image tag bump | `vLLM 0.6 → 0.7` | 5 (deploy) |
 | Chart version bump | `llama-stack 0.7.3 → 0.8.0` | 5 (deploy) |
 | Dependency update | `FastAPI 0.110 → 0.115` | 4 (implement: re-run tests) |
-| Security patch | CVE fix in base image | 5 (deploy) + 7 (security) |
+| Security patch | CVE fix in base image | 5 (deploy) + 6 (security) |
 | Feature addition | Add new endpoint | 4 (implement) |
 | Configuration change | Switch model size | 5 (deploy) |
 
@@ -499,6 +513,8 @@ Then hands off to the pipeline at the detected re-entry point:
 **Category:** `core/skills/lifecycle/rh-qs-handoff/`
 
 **Purpose:** Assess a partially implemented quickstart and continue from wherever it left off. The factory detects the current state and routes to the appropriate pipeline stage.
+
+> **TODO:** Decide whether rh-qs-handoff should also handle converting external PoC repos (e.g., `github.com/robbybrodie/pragma-encoder`) into quickstarts — either via an explicit "conversion mode" or as a separate skill. See @sauagarwa's comment on the PR.
 
 **Subagents:**
 
@@ -519,8 +535,8 @@ Phase 1: state-detector scans the repo for evidence of each stage:
          │ Stage 3 (Scaffold):   .github/workflows/ exists?     │
          │ Stage 4 (Implement):  packages/api/src/main.py?      │
          │ Stage 5 (Deploy):     deploy/helm/? compose.yml?     │
-         │ Stage 6 (Debug):      .rhoai/deploy-report.yaml?     │
-         │ Stage 7 (Security):   .rhoai/security-report.yaml?   │
+         │ Stage 6 (Security):   .rhoai/security-report.yaml?   │
+         │ Stage 7 (Debug):      .rhoai/deploy-report.yaml?     │
          │ Stage 8 (Document):   README.md beyond placeholder?  │
          │ Stage 9 (Ship):       Open PR exists?                │
          └──────────────────────────────────────────────────────┘
@@ -548,6 +564,54 @@ Phase 5: User confirms → route to appropriate skill with
 
 ---
 
+### 12. rh-qs-extract-knowledge [NEW]
+
+**Category:** `core/skills/knowledge/rh-qs-extract-knowledge/`
+
+**Purpose:** Mine completed quickstarts for reusable patterns and populate the shared knowledge base. Inspired by `bp-extract-blueprint-knowledge` from the rhoai-blueprint-skill-kit. Runs after `rh-qs-ship` completes a quickstart, or on-demand against any existing repo.
+
+**Subagents:**
+
+| Subagent | Role | Input | Output |
+|----------|------|-------|--------|
+| `component-pattern-extractor-prompt.md` | Extract component usage patterns (config, wiring, gotchas) | Source code + Helm chart | `/tmp/qs-kb-components.yaml` |
+| `deployment-pattern-extractor-prompt.md` | Extract deployment patterns (chart combos, env configs, resource sizing) | Helm + compose + deploy report | `/tmp/qs-kb-deployment.yaml` |
+| `industry-pattern-extractor-prompt.md` | Extract domain-specific patterns (data schemas, compliance, workflows) | PRD + source code | `/tmp/qs-kb-industry.yaml` |
+| `security-pattern-extractor-prompt.md` | Extract security patterns (SCC configs, secret handling, hardening) | Security report + Helm chart | `/tmp/qs-kb-security.yaml` |
+| `kb-dedup-scorer-prompt.md` | Deduplicate against existing KB, score novelty, merge or create | Extracted patterns + existing KB | `/tmp/qs-kb-update-plan.yaml` |
+
+**Workflow:**
+
+```
+Phase 1: Parallel extraction (4 extractor subagents run simultaneously)
+         → 4 temp files with candidate patterns
+
+Phase 2: kb-dedup-scorer compares candidates against existing
+         core/knowledge-base/ files:
+         - If pattern already exists: merge new details, update
+           source_quickstarts list, refresh summary
+         - If pattern is novel: create new KB file with frontmatter
+         - Score novelty: high (new component combo), medium (new
+           config variant), low (minor variation)
+
+Phase 3: Main agent applies the update plan:
+         - Write/update KB .md files with Chain of Density summaries
+         - Update KB README.md index
+         - Run validation: frontmatter schema check, no duplicate
+           entries, all tags reference valid components
+
+Phase 4: Generate extraction report → /tmp/qs-kb-extraction-report.yaml
+         Persist to {project}/.rhoai/kb-extraction-report.yaml
+```
+
+**Chain of Density summary format:** Each KB file's `summary:` field uses a 4-sentence Chain of Density summary — progressively denser sentences that pack maximum information for scored retrieval without loading the full file.
+
+**Output:** Updated `core/knowledge-base/` files, extraction report
+
+**Guardrails:** No proprietary data in KB files (patterns only, not business logic), deduplicate before creating new files, preserve existing KB file structure, validate frontmatter schema.
+
+---
+
 ## Hooks Specification
 
 ### `.cursor/hooks.json`
@@ -564,12 +628,7 @@ Phase 5: User confirms → route to appropriate skill with
     ],
     "beforeShellExecution": [
       {
-        "command": ".cursor/hooks/safety-gate.sh",
-        "matcher": "gh repo delete|git push.*--force|rm -rf|helm uninstall|oc delete project",
-        "failClosed": true
-      },
-      {
-        "command": ".cursor/hooks/namespace-policy.sh",
+        "command": ".cursor/hooks/oc-policy-gate.sh",
         "matcher": "\\boc\\b|\\bkubectl\\b|\\bhelm\\b",
         "failClosed": true
       }
@@ -585,11 +644,9 @@ Phase 5: User confirms → route to appropriate skill with
 
 **Hook 1: `format-code.sh`** — Auto-format Python (ruff) and TypeScript (prettier) after every file edit.
 
-**Hook 2: `safety-gate.sh`** — Block destructive commands (repo delete, force push, rm -rf, helm uninstall, oc delete project). Returns `"permission": "ask"` so the user can approve.
+**Hook 2: `oc-policy-gate.sh`** — Provided by `oc-policy-gate` (fetched via `git subtree`). Enforces namespace-scoped oc/kubectl/helm commands, blocks destructive cluster operations, and hard-denies missing `-n` flag and output redirects (`>`, `>>`).
 
-**Hook 3: `namespace-policy.sh`** — Enforce namespace-scoped oc/kubectl/helm commands. Hard-deny missing `-n` flag and output redirects (`>`, `>>`).
-
-**Hook 4: `log-subagent.sh`** — Log which subagents are spawned for debugging orchestration issues.
+**Hook 3: `log-subagent.sh`** — Log which subagents are spawned for debugging orchestration issues.
 
 Each hook requires a test script (`.cursor/hooks/test-<name>.sh`) with comprehensive test cases covering verbs, namespaces, pipes, subshells, and edge cases.
 
@@ -633,11 +690,16 @@ components: [llama-stack, pgvector]
 deployment_types: [helm]
 industries: [financial-services]
 source_quickstarts: [ai-supply-chain-agent, spending-transaction-monitor]
+links:
+  - title: "pgvector on OpenShift AI"
+    url: "https://docs.redhat.com/..."
+  - title: "Llama Stack deployment guide"
+    url: "https://github.com/..."
 summary: "4-sentence Chain of Density summary for scored retrieval..."
 ---
 ```
 
-**Growth mechanism:** After `rh-qs-ship` completes a quickstart, it (or a future extraction subagent) mines the repo for reusable patterns and creates/updates KB files with Chain of Density summaries.
+**Growth mechanism:** After `rh-qs-ship` completes a quickstart, `rh-qs-extract-knowledge` mines the repo for reusable patterns and creates/updates KB files with Chain of Density summaries. Can also run on-demand against any existing quickstart repo.
 
 **Scoring algorithm:** Component match (+10), deployment type (+5), architecture (+5), industry (+3). Knowledge scorer returns XML with summaries; full files loaded only for top matches.
 
@@ -652,6 +714,122 @@ summary: "4-sentence Chain of Density summary for scored retrieval..."
 | "Security check" / "Security audit" / "Is it secure?" | rh-qs-security |
 | "Update quickstart" / "Bump image" / "Upgrade dependencies" | rh-qs-update |
 | "Continue this" / "Pick up where we left off" / "Finish this quickstart" | rh-qs-handoff |
+| "Extract patterns" / "Update knowledge base" / "Mine quickstart for KB" | rh-qs-extract-knowledge |
+
+---
+
+## Evaluation Benchmark
+
+Prompt-based skills are susceptible to **silent drift** — a text change can degrade agent behavior without producing obvious errors. To detect this, we introduce an evaluation benchmark integrated with CI/CD.
+
+### The Problem
+
+When a skill's SKILL.md or subagent prompt is modified, there is no automated way to verify the change improved (or at least did not degrade) the agent's output quality. Manual review catches some issues, but cannot scale across 15 skills and ~43 subagent prompts.
+
+### The Solution: [ABEvalFlow](https://github.com/RHEcosystemAppEng/ABEvalFlow) Integration
+
+We will leverage [ABEvalFlow](https://github.com/RHEcosystemAppEng/ABEvalFlow) — an OpenShift/Tekton-orchestrated evaluation platform that measures skill efficacy through controlled A/B experiments. [ABEvalFlow](https://github.com/RHEcosystemAppEng/ABEvalFlow) runs the agent with and without a skill on the same tasks, producing statistical metrics (pass rates, reward gaps, p-values) and a unified scorecard.
+
+### Benchmark Components
+
+**1. Static Test PRDs**
+
+Create a small, curated set of test PRDs in `tests/benchmark/prds/` that represent canonical quickstart scenarios:
+
+| Test PRD | Scenario | Exercises |
+|----------|----------|-----------|
+| `minimal-api.md` | API-only, no frontend, no RAG | Stages 1–5, 8–9 |
+| `full-stack-rag.md` | Frontend + backend + pgvector + Llama Stack | All stages |
+| `notebook-only.md` | RHOAI notebook, no Helm | Stages 1–2, 4, 6–9 |
+
+Each test PRD has a known-good reference implementation so outcomes can be verified against expected artifacts.
+
+**2. Skill Submissions**
+
+Package each factory skill as a Harbor submission for [ABEvalFlow](https://github.com/RHEcosystemAppEng/ABEvalFlow):
+
+```
+tests/benchmark/submissions/rh-qs-implement/
+├── metadata.yaml          # eval_engine: harbor, n_trials, gate_policy
+├── instruction.md         # Task description for the benchmark
+├── skills/
+│   └── SKILL.md           # Symlink to core/skills/.../SKILL.md
+└── tests/
+    └── test_outputs.py    # Verifier: checks generated artifacts
+```
+
+**3. Evaluation Engines**
+
+| Engine | Use Case | When |
+|--------|----------|------|
+| **Harbor** (A/B) | Gold standard — measures skill uplift with container isolation | Pre-merge gating on skill changes |
+| **ASE** (lightweight) | Fast feedback — LLM-as-judge assertions | PR CI for rapid iteration |
+
+**4. Metrics Produced**
+
+| Metric | Description | Pass Criteria |
+|--------|-------------|---------------|
+| `mean_reward_gap` | Treatment (with skill) minus control (without) | ≥ 0.0 (no degradation) |
+| `pass_rate` | Fraction of trials that produced correct artifacts | Treatment ≥ control |
+| `ttest_p_value` | Statistical significance of reward difference | < 0.05 for confident claims |
+| Scorecard recommendation | Combined evaluation + security + quality gates | `pass` or `warn` (not `fail`) |
+
+**5. CI/CD Integration**
+
+| Trigger | Pipeline | Action on Failure |
+|---------|----------|-------------------|
+| PR modifying `core/skills/**` | ASE (fast, ~5 min) | Block merge if scorecard = `fail` |
+| PR modifying `core/skills/**` + label `full-eval` | Harbor (thorough, ~30 min) | Block merge if `mean_reward_gap < 0` |
+| Weekly scheduled | Harbor on all skills vs baseline | Slack alert if degradation detected |
+
+**6. Monitoring and Regression Detection**
+
+[ABEvalFlow](https://github.com/RHEcosystemAppEng/ABEvalFlow)'s monitoring pipeline runs canary skills periodically and compares against historical baselines stored in PostgreSQL. If a skill's score drops below 85% of its previous baseline, the system flags a degradation and sends alerts.
+
+### Benchmark Maintenance
+
+- Test PRDs are **static** — they change only through deliberate, reviewed PRs
+- Reference implementations are versioned alongside the test PRDs
+- New test PRDs are added when new skill patterns emerge (e.g., after adding rh-qs-security)
+- [ABEvalFlow](https://github.com/RHEcosystemAppEng/ABEvalFlow) `metadata.yaml` configurations are stored in `tests/benchmark/submissions/` and validated by `skill-validator`
+
+---
+
+## agentskills.io Spec Compliance
+
+All skills — existing and new — must strictly follow the [agentskills.io](https://agentskills.io) open standard. Drift from the spec causes inconsistent behavior across agent harnesses (Cursor, Claude Code, Codex, Gemini).
+
+### Enforced Constraints
+
+| Constraint | Enforcement |
+|-----------|-------------|
+| `name` field matches directory name exactly | `validate-skills.sh` + `skill-validator --strict` |
+| `name` uses lowercase letters, numbers, hyphens only (max 64 chars) | `skill-validator` |
+| `description` is non-empty (max 1024 chars) | `skill-validator` |
+| SKILL.md body uses valid markdown with correct code fences | `skill-validator` |
+| Internal file references resolve (scripts/, references/) | `skill-validator` |
+| Token budget within spec limits | `skill-validator` |
+| No Windows-style paths | `skill-validator` |
+
+### Extended Frontmatter
+
+Some agent clients support extended frontmatter fields (`allowed-tools`, `disable-model-invocation`, `argument-hint`). These are permitted via `--allow-extra-frontmatter` in `skill-validator` but must not break harnesses that ignore them.
+
+### CI Validation
+
+The existing `make skills-check` target runs both layout validation and spec validation on every PR:
+
+```bash
+make skills-check
+# 1. validate-skills.sh      — layout: core/skills/<category>/<skill-name>/SKILL.md
+# 2. validate-skills-spec.sh — agentskills.io via skill-validator --strict --allow-extra-frontmatter
+# 3. sync-clients.sh          — symlink into .cursor/, .claude/, .codex/, .gemini/
+# 4. symlink count check      — all skills discoverable by all clients
+```
+
+### New Skills Must Pass
+
+Every new skill introduced in this ADR (rh-qs-security, rh-qs-debug-and-deploy, rh-qs-update, rh-qs-handoff, rh-qs-extract-knowledge) must pass `skill-validator --strict` before merge. Subagent prompts in `subagents/` directories are not required to follow the agentskills.io spec (they are not standalone skills), but their parent SKILL.md must.
 
 ---
 
@@ -662,14 +840,15 @@ summary: "4-sentence Chain of Density summary for scored retrieval..."
 | **Phase 1: Foundation** | Hooks + guardrails files for all existing skills | Low — additive, no restructuring |
 | **Phase 2: Validation** | Feedback loops + multi-layer validation for existing skills | Medium — modifies SKILL.md files |
 | **Phase 3: Orchestration** | Subagent prompts + spec-as-contract for all existing skills (~25 subagent prompts) | High — core architecture change |
-| **Phase 4: New Skills** | rh-qs-debug-and-deploy + rh-qs-security (~11 subagent prompts) | High — new deployment infrastructure |
+| **Phase 4: New Skills** | rh-qs-security + rh-qs-debug-and-deploy (~10 subagent prompts) | High — new deployment infrastructure |
 | **Phase 5: Lifecycle** | rh-qs-update + rh-qs-handoff (~7 subagent prompts) | Medium — utility skills |
-| **Phase 6: Knowledge Base** | KB creation, extraction from completed quickstarts, scoring | Low — grows over time |
+| **Phase 6: Knowledge Base** | rh-qs-extract-knowledge (~5 subagent prompts), KB creation, scoring | Medium — requires extraction skill |
+| **Phase 7: Evaluation Benchmark** | Test PRDs, [ABEvalFlow](https://github.com/RHEcosystemAppEng/ABEvalFlow) submissions, CI/CD gating | Medium — requires [ABEvalFlow](https://github.com/RHEcosystemAppEng/ABEvalFlow) infra |
 
 **Totals:**
 
 - New subagent prompts: ~43
-- New skills: 3 (pipeline) + 2 (utility) = 5
+- New skills: 2 (pipeline) + 3 (utility) = 5
 - Total skills after upgrade: 15 (9 pipeline + 6 utility)
 
 ---
@@ -679,14 +858,17 @@ summary: "4-sentence Chain of Density summary for scored retrieval..."
 ### Positive
 
 - **Dramatically higher output quality** — errors caught in validation loops before users see them
-- **Faster execution** — parallel subagents (backend + frontend, 5 security scanners simultaneously)
+- **Faster execution** — parallel subagents (backend + frontend, 4 security scanners simultaneously)
 - **Context efficiency** — subagent delegation saves 60–70% context window
 - **Auditability** — temp files create an audit trail of every decision and fix attempt
 - **Growing intelligence** — knowledge base improves with each completed quickstart
 - **Safety** — hooks prevent destructive operations and enforce namespace-scoped cluster commands
 - **Full lifecycle coverage** — update and handoff skills close gaps for released and partial quickstarts
-- **Security by default** — dedicated security stage before documentation and shipping
+- **Security by default** — dedicated security stage before cluster deployment, ensuring security fixes are always tested on the real cluster
 - **Test quality** — separated test authoring from code fixes ensures tests represent real requirements, not implementation artifacts
+- **Measurable skill quality** — [ABEvalFlow](https://github.com/RHEcosystemAppEng/ABEvalFlow) benchmark provides statistical proof that skill changes improve or maintain output quality
+- **Regression detection** — scheduled monitoring catches silent drift before it reaches users
+- **Spec compliance** — strict agentskills.io validation ensures consistent behavior across Cursor, Claude Code, Codex, and Gemini
 
 ### Negative
 
@@ -712,3 +894,5 @@ summary: "4-sentence Chain of Density summary for scored retrieval..."
 - [ai-architecture-charts](https://github.com/rh-ai-quickstart/ai-architecture-charts) — Helm chart repo
 - [ai-quickstart-template](https://github.com/rh-ai-quickstart/ai-quickstart-template) — monorepo template
 - [docs/skills-development.md](../skills-development.md) — existing development guide
+- [ABEvalFlow](https://github.com/RHEcosystemAppEng/ABEvalFlow) — evaluation benchmark platform for AI skills
+- [skill-validator](https://github.com/agent-ecosystem/skill-validator) — agentskills.io spec validation tool
