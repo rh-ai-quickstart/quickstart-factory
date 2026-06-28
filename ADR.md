@@ -372,6 +372,8 @@ Phase 4: Generate security report → /tmp/qs-security-report.yaml
 
 **Guardrails:** False positive filtering (some warnings are acceptable for demos), compliance context (HIPAA/PCI if PRD specifies), GPU security contexts (some GPU workloads require elevated permissions — document the justification).
 
+**Post-publication CVE monitoring:** This skill covers build-time security scanning during development. For published quickstarts, ongoing CVE detection is handled at the CI/CD layer — each quickstart repo should enable GitHub Dependabot / Renovate for automated dependency alerts and PRs. When a new CVE is detected post-publication, the remediation path is `rh-qs-update` (re-entry at stages 5+6) which already supports the "Security patch" update type.
+
 ---
 
 ### 7. rh-qs-debug-and-deploy [NEW]
@@ -442,7 +444,9 @@ Phase 6:  Final report → copy to {project}/.rhoai/deploy-report.yaml
 | `readme-generator-prompt.md` | Generate README from implementation + deploy manifests | All manifests + security report | README.md draft |
 | `doc-validator-prompt.md` | Validate all documented commands exist and work | README + Makefile + repo | Validation report |
 
-**Loop:** Generate → validate (every `make` target exists, every URL well-formed, diagram matches components) → fix (max 2 iterations)
+**Loop:** Generate → validate (every `make` target exists, every URL well-formed, diagram matches components) → present draft to user → user refines (no cap on refinement rounds — documentation quality is subjective and requires human judgment)
+
+**Prompt engineering note:** The `readme-generator-prompt.md` is a high-effort deliverable that will require significant experimentation. LLMs tend to generate overly verbose documentation that explains implementation details rather than user-facing usage. The prompt must enforce conciseness: focus on what the quickstart does, how to deploy it, and how to use it — not how it was built. This prompt, once refined, becomes a reusable asset across all quickstarts.
 
 ---
 
@@ -677,17 +681,21 @@ core/knowledge-base/
 │   ├── healthcare.md
 │   ├── supply-chain.md
 │   └── retail.md
-└── security/
-    ├── openshift-scc-patterns.md
-    ├── container-hardening.md
-    └── secret-management.md
+├── security/
+│   ├── openshift-scc-patterns.md
+│   ├── container-hardening.md
+│   └── secret-management.md
+└── standards/
+    ├── makefile-targets.md
+    ├── repo-structure.md
+    └── ci-requirements.md
 ```
 
 **Frontmatter schema per KB file:**
 
 ```yaml
 ---
-type: component-pattern | deployment-pattern | industry-pattern | security-pattern
+type: component-pattern | deployment-pattern | industry-pattern | security-pattern | standard-pattern
 components: [llama-stack, pgvector]
 deployment_types: [helm]
 industries: [financial-services]
@@ -700,6 +708,8 @@ links:
 summary: "4-sentence Chain of Density summary for scored retrieval..."
 ---
 ```
+
+**Standards category:** The `standards/` directory contains cross-cutting requirements that apply to **every** quickstart regardless of components or industry — e.g., required Makefile targets (`make deploy`, `make test`, `make lint`), repo structure conventions, and CI workflow requirements. Hard requirements from `standards/` are enforced by `rh-qs-scaffold` during repo creation; best practices are advisory and scored like any other KB file.
 
 **Growth mechanism:** After `rh-qs-ship` completes a quickstart, `rh-qs-extract-knowledge` mines the repo for reusable patterns and creates/updates KB files with Chain of Density summaries. Can also run on-demand against any existing quickstart repo.
 
