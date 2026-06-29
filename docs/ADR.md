@@ -10,7 +10,7 @@ Authors: Matan Talvi, Yossi Elias
 
 The Quickstart Factory currently operates a 7-stage pipeline with 10 skills (7 pipeline + 3 utility). Each skill is a flat `SKILL.md` that the agent reads and follows directly — no subagent orchestration, no feedback loops, no validation beyond `make lint && make test`, no hooks, and no knowledge base.
 
-Production-grade AI agent skill architectures demonstrate significantly more advanced patterns: subagent orchestration with parallel execution, spec-as-contract workflows, bounded feedback loops, namespace-scoped security hooks, living knowledge bases with scored retrieval, temp-file handoff between phases, and reasoning guardrails. Output quality is measurably higher because errors are caught in validation loops before the user ever sees them.
+The [rhoai-blueprint-skill-kit](https://github.com/rh-ai-quickstart/rhoai-blueprint-skill-kit) demonstrates what production-grade AI agent skills look like: subagent orchestration with parallel execution, spec-as-contract workflows, bounded feedback loops, namespace-scoped security hooks, living knowledge bases with scored retrieval, temp-file handoff between phases, and reasoning guardrails. Output quality is measurably higher because errors are caught in validation loops before the user ever sees them.
 
 This ADR proposes upgrading all factory skills to this level of sophistication, while preserving the factory's existing strengths (agentskills.io spec compliance, multi-client portability, Makefile-driven validation, `skill-validator` CI).
 
@@ -51,7 +51,7 @@ Every factory skill will be restructured to follow 8 architectural patterns.
 
 ### Pattern 1: Subagent Orchestration
 
-Each skill's `SKILL.md` becomes an **orchestrator** that delegates heavy work to subagent prompts in a `subagents/` directory.
+Each skill's `SKILL.md` becomes an **orchestrator** that delegates heavy work to subagent prompts in a `subagents/` directory. This pattern is proven in the [rhoai-blueprint-skill-kit](https://github.com/rh-ai-quickstart/rhoai-blueprint-skill-kit), where every skill follows this structure.
 
 **Critical design rule:** The main agent must NOT read subagent prompt files. It passes them by file path to the Task/Agent tool. This saves 60–70% of context window.
 
@@ -132,7 +132,7 @@ Project-level hooks for safety and automation, gating destructive commands, enfo
 
 ### Pattern 7: Knowledge Base
 
-A shared, tagged, scored knowledge base of reusable patterns mined from completed quickstarts. Each KB file has structured frontmatter with a Chain of Density summary for efficient retrieval without loading full files.
+A shared, tagged, scored knowledge base of reusable patterns mined from completed quickstarts. Each KB file has structured frontmatter with a Chain of Density summary for efficient retrieval without loading full files. Architecture follows the [rhoai-blueprint-skill-kit](https://github.com/rh-ai-quickstart/rhoai-blueprint-skill-kit)'s KB pattern (e.g., `bp-convert-to-rhoai/knowledge-base/`).
 
 ### Pattern 8: Multi-Layer Validation
 
@@ -908,3 +908,4 @@ Every new skill introduced in this ADR (rh-qs-security, rh-qs-debug-and-deploy, 
 - [docs/skills-development.md](../skills-development.md) — existing development guide
 - [ABEvalFlow](https://github.com/RHEcosystemAppEng/ABEvalFlow) — evaluation benchmark platform for AI skills
 - [skill-validator](https://github.com/agent-ecosystem/skill-validator) — agentskills.io spec validation tool
+- [rhoai-blueprint-skill-kit](https://github.com/rh-ai-quickstart/rhoai-blueprint-skill-kit) — reference implementation for advanced skill patterns (subagent orchestration, KB scoring, deploy-and-debug, knowledge extraction)
