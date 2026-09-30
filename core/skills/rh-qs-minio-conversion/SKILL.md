@@ -2,11 +2,11 @@
 name: rh-qs-minio-conversion
 description: |
   Convert an existing AI Quickstart from MinIO (ai-architecture-charts minio
-  subchart or hand-rolled templates) to the shared object-storage chart
+  subchart or hand-rolled templates) to the shared aws-compatible-storage chart
   (S4-backed) from ai-architecture-charts. Removes MinIO wiring, adds the
-  object-storage Helm dependency, updates app endpoints/credentials, and
+  aws-compatible-storage Helm dependency, updates app endpoints/credentials, and
   rewrites MinIO mentions in docs. Use when migrating a quickstart off MinIO
-  onto S4 / object-storage.
+  onto S4 / aws-compatible-storage.
 ---
 
 # rh-qs-minio-conversion
@@ -15,15 +15,16 @@ description: |
 
 ## Trigger
 
-- User asks to convert MinIO to **S4** / **object-storage** / Super Simple Storage Service
+- User asks to convert MinIO to **S4** / **aws-compatible-storage** / Super Simple Storage Service
 - Quickstart uses MinIO via the [ai-architecture-charts minio](https://github.com/rh-ai-quickstart/ai-architecture-charts/tree/main/minio) subchart, `configure-pipeline` with `deployMinio`, **or hand-rolled** MinIO Deployment/PVC/Service/Secret/Route/Job templates
-- Target is the shared **[object-storage](https://github.com/rh-ai-quickstart/ai-architecture-charts/tree/main/object-storage)** chart in [ai-architecture-charts](https://github.com/rh-ai-quickstart/ai-architecture-charts) (S4 runtime image)
+- Target is the shared **[aws-compatible-storage](https://github.com/rh-ai-quickstart/ai-architecture-charts/tree/main/aws-compatible-storage)** chart in [ai-architecture-charts](https://github.com/rh-ai-quickstart/ai-architecture-charts) (S4 runtime image)
+- Quickstart still depends on the former chart name `object-storage` and needs renaming to `aws-compatible-storage`
 
 ## Goal
 
-Replace self-managed MinIO with **object-storage** — the ai-architecture-charts packaging of [S4](https://github.com/rh-aiservices-bu/s4) (Ceph RGW + web UI) — while keeping the S3 API. Swap endpoints, credentials, Helm wiring, local compose, bootstrap/validate scripts, and docs.
+Replace self-managed MinIO with **aws-compatible-storage** — the ai-architecture-charts packaging of [S4](https://github.com/rh-aiservices-bu/s4) (Ceph RGW + web UI) — while keeping the S3 API. Swap endpoints, credentials, Helm wiring, local compose, bootstrap/validate scripts, and docs.
 
-Do **not** vendor `charts/s4` from `rh-aiservices-bu/s4` into the quickstart. Depend on **`object-storage`** from ai-architecture-charts (same pattern as `minio`, `pgvector`, `llama-stack`).
+Do **not** vendor `charts/s4` from `rh-aiservices-bu/s4` into the quickstart. Depend on **`aws-compatible-storage`** from ai-architecture-charts (same pattern as `minio`, `pgvector`, `llama-stack`).
 
 ## Where This Runs
 
@@ -33,14 +34,14 @@ Inside the quickstart repo — typically `.rhoai-qs/<slug>/` after scaffold, or 
 
 | Item | Location |
 |------|----------|
-| Shared chart | [`ai-architecture-charts/object-storage`](https://github.com/rh-ai-quickstart/ai-architecture-charts/tree/main/object-storage) |
-| Helm path | `object-storage/helm/` |
-| Published repo | `https://rh-ai-quickstart.github.io/ai-architecture-charts` (chart name `object-storage`) |
-| Local sibling | `file://../ai-architecture-charts/object-storage/helm` |
+| Shared chart | [`ai-architecture-charts/aws-compatible-storage`](https://github.com/rh-ai-quickstart/ai-architecture-charts/tree/main/aws-compatible-storage) |
+| Helm path | `aws-compatible-storage/helm/` |
+| Published repo | `https://rh-ai-quickstart.github.io/ai-architecture-charts` (chart name `aws-compatible-storage`) |
+| Local sibling | `file://../ai-architecture-charts/aws-compatible-storage/helm` |
 | Upstream runtime | `quay.io/rh-aiservices-bu/s4` (pin tag; chart `appVersion`) |
 | MinIO (leave available) | [`ai-architecture-charts/minio`](https://github.com/rh-ai-quickstart/ai-architecture-charts/tree/main/minio) — do not delete from the charts repo |
 
-**Proven conversions (patterns to copy; some predate the shared chart and vendored upstream S4 — rewire those to `object-storage` when touching them):**
+**Proven conversions (patterns to copy; some predate the shared chart, vendored upstream S4, or still say `object-storage` — rewire those to `aws-compatible-storage` when touching them):**
 
 | Quickstart | Chart path | Notes |
 |------------|------------|--------|
@@ -50,12 +51,12 @@ Inside the quickstart repo — typically `.rhoai-qs/<slug>/` after scaffold, or 
 
 ## What it does
 
-1. Inventories every MinIO dependency (Helm subchart **or** custom templates, compose, app, env, bootstrap/validate scripts, CI, **PNG/Mermaid**)
+1. Inventories every MinIO dependency (Helm subchart **or** custom templates, compose, app, env, bootstrap/validate scripts, CI, **PNG/Mermaid**) — also any leftover `object-storage` chart name
 2. Removes MinIO (subchart and/or `templates/minio-*.yaml`, values, hooks)
-3. Adds **`object-storage`** from ai-architecture-charts (`Chart.yaml` + values + `helm dependency update`)
+3. Adds **`aws-compatible-storage`** from ai-architecture-charts (`Chart.yaml` + values + `helm dependency update`)
 4. Rewires consumers to the S3 API (`:7480`) and `{fullname}-credentials`
 5. Adds a **regular** bucket bootstrap Job in the **parent** chart (UBI Python + boto3 — no `minio/mc`, no Docker Hub)
-6. Updates READMEs, env examples, scripts, diagrams (MinIO → object-storage / S4)
+6. Updates READMEs, env examples, scripts, diagrams (MinIO → aws-compatible-storage / S4)
 7. Verifies with `helm lint` / `helm template` / chart unit tests; recommend **`rh-qs-verify-deploy`**
 
 ## Prerequisites
@@ -64,20 +65,20 @@ Inside the quickstart repo — typically `.rhoai-qs/<slug>/` after scaffold, or 
 |-------------|--------|
 | Existing MinIO usage | Subchart, `configure-pipeline.deployMinio`, **or** hand-rolled MinIO templates |
 | S3-compatible clients | boto3 / minio-py / AWS SDK / ZenML S3 flavor — keep API; change endpoint + credentials |
-| Cluster PVC support | object-storage needs a PVC for RGW data (default `10Gi`) |
-| Chart source | [ai-architecture-charts object-storage](https://github.com/rh-ai-quickstart/ai-architecture-charts/tree/main/object-storage) — **not** a copy of `rh-aiservices-bu/s4/charts/s4` into the quickstart |
+| Cluster PVC support | aws-compatible-storage needs a PVC for RGW data (default `10Gi`) |
+| Chart source | [ai-architecture-charts aws-compatible-storage](https://github.com/rh-ai-quickstart/ai-architecture-charts/tree/main/aws-compatible-storage) — **not** a copy of `rh-aiservices-bu/s4/charts/s4` into the quickstart |
 | Pullable Job images | OpenShift CLI / UBI only (see [Job images](#3-job-images--do-not-use-docker-hub-or-miniomc)) |
 
-## MinIO → object-storage mapping
+## MinIO → aws-compatible-storage mapping
 
-| Concern | MinIO | object-storage (S4) |
-|---------|-------|---------------------|
-| Chart | `minio` subchart **or** custom `templates/minio-*.yaml` | `object-storage` from ai-architecture-charts |
-| Dependency | `condition: minio.enabled` | `condition: object-storage.enabled` |
+| Concern | MinIO | aws-compatible-storage (S4) |
+|---------|-------|-----------------------------|
+| Chart | `minio` subchart **or** custom `templates/minio-*.yaml` | `aws-compatible-storage` from ai-architecture-charts |
+| Dependency | `condition: minio.enabled` | `condition: aws-compatible-storage.enabled` |
 | Image | `quay.io/minio/minio` | `quay.io/rh-aiservices-bu/s4` (pin tag, e.g. `0.3.2`) |
 | S3 API port | **9000** | **7480** |
 | Web / console | **9090** | **5000** (UI Route by default) |
-| In-cluster endpoint | `http://minio:9000` | `http://<fullname>:7480` — prefer `fullnameOverride: object-storage` or short `s4` |
+| In-cluster endpoint | `http://minio:9000` | `http://<fullname>:7480` — prefer `fullnameOverride: aws-compatible-storage` or short `s4` |
 | Credentials Secret | Often `minio` → `user`/`password`, or custom `minio-root` → `MINIO_ROOT_*` | `{fullname}-credentials` → `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` |
 | Default access / secret | chart- or values-specific | `s4admin` / `s4secret` |
 | UI Route name | e.g. `minio-s3` or `minio-webui` | **`{fullname}`** (targetPort `web-ui`) |
@@ -90,35 +91,38 @@ Inside the quickstart repo — typically `.rhoai-qs/<slug>/` after scaffold, or 
 
 | `fullnameOverride` | Service DNS | Credentials Secret | S3 API Route | When |
 |-----------------|-------------|--------------------|--------------|------|
-| `object-storage` | `http://object-storage:7480` | `object-storage-credentials` | `object-storage-api` | Default / new migrations |
+| `aws-compatible-storage` | `http://aws-compatible-storage:7480` | `aws-compatible-storage-credentials` | `aws-compatible-storage-api` | Default / new migrations |
 | `s4` | `http://s4:7480` | `s4-credentials` | `s4-api` | Match Fraud Detection–style short DNS or existing `s4` docs |
 
 Document the chosen name in README and validate scripts. Do not mix both in one release.
 
+> **Former chart name:** Early migrations may still say `object-storage` in Chart.yaml / values / helpers / packaged `charts/object-storage-*.tgz`. Treat that as the same target — rename the dependency, values key, helpers, and package to **`aws-compatible-storage`**. Keep DSPA CR fields named `objectStorage` (OpenShift AI API); that is unrelated to the Helm chart name.
+
 ## Hard-won rules (read before implementing)
 
-From Fraud Detection, Billing, self-improving-retrieval, and the ai-architecture-charts `object-storage` chart work:
+From Fraud Detection, Billing, self-improving-retrieval, and the ai-architecture-charts `aws-compatible-storage` chart work:
 
 ### 1. Depend on ai-architecture-charts — do not vendor upstream S4
 
 ```yaml
 # Chart.yaml — correct
 dependencies:
-  - name: object-storage
+  - name: aws-compatible-storage
     version: 0.1.0
     repository: https://rh-ai-quickstart.github.io/ai-architecture-charts
     # local sibling while iterating:
-    # repository: "file://../ai-architecture-charts/object-storage/helm"
-    condition: object-storage.enabled
+    # repository: "file://../ai-architecture-charts/aws-compatible-storage/helm"
+    condition: aws-compatible-storage.enabled
 ```
 
 ```yaml
 # Chart.yaml — wrong (do not do this in quickstarts)
 # - name: s4
 #   repository: "file://charts/s4"   # vendored from rh-aiservices-bu/s4
+# - name: object-storage            # former chart name — rename to aws-compatible-storage
 ```
 
-The shared chart already adapts upstream S4 templates (helpers renamed to `object-storage.*`, OpenShift-friendly defaults, unittest suite including a Fraud-like `fullnameOverride: s4` contract). Bumps go through **`rh-qs-bump-versions`** / ai-architecture-charts releases.
+The shared chart already adapts upstream S4 templates (helpers renamed to `aws-compatible-storage.*`, OpenShift-friendly defaults, unittest suite including a Fraud-like `fullnameOverride: s4` contract). Bumps go through **`rh-qs-bump-versions`** / ai-architecture-charts releases.
 
 ### 2. Helm `--wait` vs post-install hooks
 
@@ -132,8 +136,8 @@ Cross-namespace probes fail on bare service names (`lookup … no such host`).
 
 ```yaml
 dataSciencePipelines:
-  objectStorage:
-    host: object-storage.<namespace>.svc.cluster.local   # or s4.<ns>.svc… if fullnameOverride: s4
+  objectStorage:   # DSPA CR field name — keep as-is (not the Helm chart name)
+    host: aws-compatible-storage.<namespace>.svc.cluster.local   # or s4.<ns>.svc… if fullnameOverride: s4
     port: "7480"
     scheme: http
 ```
@@ -162,13 +166,13 @@ Replace KServe / InferenceService init containers that shell out to `mc` with th
 
 ### 6. Credentials wiring
 
-Prefer `secretKeyRef` → `{fullname}-credentials` for `AWS_*`. Do not inline demo keys in Deployments when the Secret exists. ODH data-connection Secrets may mirror keys — keep in sync with `object-storage.s3.*`.
+Prefer `secretKeyRef` → `{fullname}-credentials` for `AWS_*`. Do not inline demo keys in Deployments when the Secret exists. ODH data-connection Secrets may mirror keys — keep in sync with `aws-compatible-storage.s3.*`.
 
-Hand-rolled MinIO often used `MINIO_ROOT_USER` / `MINIO_ROOT_PASSWORD` on a custom Secret (e.g. `minio-root`). Map those to `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` on the object-storage credentials Secret everywhere (Helm Jobs, KServe, ZenML registration scripts).
+Hand-rolled MinIO often used `MINIO_ROOT_USER` / `MINIO_ROOT_PASSWORD` on a custom Secret (e.g. `minio-root`). Map those to `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` on the aws-compatible-storage credentials Secret everywhere (Helm Jobs, KServe, ZenML registration scripts).
 
 ### 7. Docs / diagrams
 
-Inventory **PNG/SVG** as well as Markdown. Prefer Mermaid when regenerating PNGs is awkward. Say **object-storage (S4)** on first mention; “S4” alone is fine afterward for the runtime.
+Inventory **PNG/SVG** as well as Markdown. Prefer Mermaid when regenerating PNGs is awkward. Say **aws-compatible-storage (S4)** on first mention; “S4” alone is fine afterward for the runtime.
 
 ### 8. GroundX + S4 path proxy — gate readiness on upstream S4
 
@@ -191,7 +195,7 @@ UI Route remains **`{fullname}`** (port `web-ui` / `:5000`). Health for UI: `htt
 If bootstrap registers an S3 artifact store from **outside** the cluster (e.g. ZenML CLI), preserve a public S3 Route:
 
 ```yaml
-object-storage:
+aws-compatible-storage:
   route:
     enabled: true          # UI
     s3Api:
@@ -207,39 +211,39 @@ Keep `route.s3Api.enabled: false` when nothing outside the cluster needs S3.
 
 ### 12. Parent-chart helpers for DNS / secret
 
-Parent templates cannot call the subchart’s `object-storage.fullname` with the subchart’s root context. Add thin helpers on the **parent** (Fraud Detection / zenml-stack pattern), matching the chosen `fullnameOverride`:
+Parent templates cannot call the subchart’s `aws-compatible-storage.fullname` with the subchart’s root context. Add thin helpers on the **parent** (Fraud Detection / zenml-stack pattern), matching the chosen `fullnameOverride`:
 
 ```yaml
-{{- define "object-storage.fullname" -}}
-{{- /* match values: object-storage.fullnameOverride */ -}}
-object-storage
+{{- define "aws-compatible-storage.fullname" -}}
+{{- /* match values: aws-compatible-storage.fullnameOverride */ -}}
+aws-compatible-storage
 {{- end }}
-{{- define "object-storage.secretName" -}}
-{{- printf "%s-credentials" (include "object-storage.fullname" .) }}
+{{- define "aws-compatible-storage.secretName" -}}
+{{- printf "%s-credentials" (include "aws-compatible-storage.fullname" .) }}
 {{- end }}
-{{- define "object-storage.apiPort" -}}
+{{- define "aws-compatible-storage.apiPort" -}}
 7480
 {{- end }}
-{{- define "object-storage.uiPort" -}}
+{{- define "aws-compatible-storage.uiPort" -}}
 5000
 {{- end }}
 ```
 
-If using `fullnameOverride: s4`, parent helpers may keep the short name (`s4` / `s4-credentials`) for continuity — just be consistent.
+If using `fullnameOverride: s4`, parent helpers may keep the short name (`s4` / `s4-credentials`) for continuity — just be consistent. If the parent still defines `object-storage.*` helpers from an earlier migration, rename them to `aws-compatible-storage.*` (or keep short `s4.*` aliases only when `fullnameOverride: s4`).
 
 Use these in the bootstrap Job instead of hardcoding only in one place.
 
 ### 13. Hand-rolled MinIO is a first-class path
 
-Inventory may find **no** Chart.yaml `minio` dependency — only `templates/minio-*.yaml`. Still convert: delete those templates, add `object-storage`, rewire scripts that `--set minio.*` / wait on `deployment/minio` / `job/minio-bootstrap` / `/minio/health/ready`.
+Inventory may find **no** Chart.yaml `minio` dependency — only `templates/minio-*.yaml`. Still convert: delete those templates, add `aws-compatible-storage`, rewire scripts that `--set minio.*` / wait on `deployment/minio` / `job/minio-bootstrap` / `/minio/health/ready`.
 
 ### 14. Bucket bootstrap stays in the parent
 
-The object-storage chart does **not** create buckets. lakeFS blockstore wiring, OpenShift AI data-connection Secrets, and bucket Jobs belong in the **parent** chart — same separation as documented in [object-storage/README.md](https://github.com/rh-ai-quickstart/ai-architecture-charts/blob/main/object-storage/README.md).
+The aws-compatible-storage chart does **not** create buckets. lakeFS blockstore wiring, OpenShift AI data-connection Secrets, and bucket Jobs belong in the **parent** chart — same separation as documented in [aws-compatible-storage/README.md](https://github.com/rh-ai-quickstart/ai-architecture-charts/blob/main/aws-compatible-storage/README.md).
 
 ### 15. After `helm dependency update`
 
-Commit **Chart.lock** and the packaged chart under `charts/` (e.g. `object-storage-0.1.0.tgz`) per the quickstart’s existing Helm vendoring practice. Prefer the published OCI/HTTP repo version once the chart is released; use `file://../ai-architecture-charts/object-storage/helm` only while iterating on an unreleased charts branch.
+Commit **Chart.lock** and the packaged chart under `charts/` (e.g. `aws-compatible-storage-0.1.0.tgz`) per the quickstart’s existing Helm vendoring practice. Prefer the published OCI/HTTP repo version once the chart is released; use `file://../ai-architecture-charts/aws-compatible-storage/helm` only while iterating on an unreleased charts branch. Remove any leftover `object-storage-*.tgz` / `charts/object-storage/`.
 
 ---
 
@@ -252,23 +256,23 @@ Resolve which quickstart this session is for before any edits. List sibling slug
 ### Phase 1: Inventory MinIO surface area
 
 ```
-- [ ] 1. Chart.yaml — minio / configure-pipeline dependencies (may be absent if hand-rolled)
-- [ ] 2. values.yaml — minio.*, configure-pipeline.minio.*, pipelineStorage.deployMinio
-- [ ] 3. Parent templates — minio-*.yaml, bucket Jobs/hooks, Routes, Secrets
+- [ ] 1. Chart.yaml — minio / configure-pipeline / object-storage dependencies (may be absent if hand-rolled)
+- [ ] 2. values.yaml — minio.*, configure-pipeline.minio.*, pipelineStorage.deployMinio, object-storage.*, aws-compatible-storage.*
+- [ ] 3. Parent templates — minio-*.yaml, bucket Jobs/hooks, Routes, Secrets, object-storage.* helpers
 - [ ] 4. App code — MINIO_*, AWS_* → http://minio:9000, mc init containers, minio SDK
 - [ ] 5. Bootstrap / validate / delete scripts — oc waits, helm --set minio.*, health URLs
 - [ ] 6. compose.yml / Containerfiles — local MinIO or minio/mc
 - [ ] 7. Makefile / CI — minio-console, health checks, sample-upload
 - [ ] 8. Docs — README, AGENTS, design, Mermaid, **PNG/SVG**
 - [ ] 9. DSPA / lakeFS / GroundX / ZenML — Ready-before-hook or external S3 Route needs
-- [ ] 10. Choose fullnameOverride: object-storage (default) vs s4 (short DNS)
+- [ ] 10. Choose fullnameOverride: aws-compatible-storage (default) vs s4 (short DNS)
 ```
 
 Present a short inventory + **URL/path matrix** (in-cluster vs Route, Secret keys, Route names, chosen `fullnameOverride`). Confirm scope before edit.
 
 ### Phase 2: Spec the conversion (approve before edit)
 
-Draft: Service DNS (`fullnameOverride`), bucket names, auth, PVC size, bootstrap Job (regular), DSPA FQDN, whether **`route.s3Api.enabled`**, ZenML/store renames (`openshift-minio` → `openshift-s4` / `openshift-object-storage`). Get approval, then implement.
+Draft: Service DNS (`fullnameOverride`), bucket names, auth, PVC size, bootstrap Job (regular), DSPA FQDN, whether **`route.s3Api.enabled`**, ZenML/store renames (`openshift-minio` → `openshift-s4` / `openshift-aws-compatible-storage`). Get approval, then implement.
 
 ### Phase 3: Remove MinIO from Helm
 
@@ -281,17 +285,17 @@ Draft: Service DNS (`fullnameOverride`), bucket names, auth, PVC size, bootstrap
 
 Subchart reference (inverse / MinIO add): [rh-qs-deploy/references/helm-minio.md](../rh-qs-deploy/references/helm-minio.md).
 
-### Phase 4: Add the object-storage Helm chart
+### Phase 4: Add the aws-compatible-storage Helm chart
 
 ```yaml
 # Chart.yaml
 dependencies:
-  - name: object-storage
+  - name: aws-compatible-storage
     version: 0.1.0
     repository: https://rh-ai-quickstart.github.io/ai-architecture-charts
     # While developing against a local charts checkout:
-    # repository: "file://../ai-architecture-charts/object-storage/helm"
-    condition: object-storage.enabled
+    # repository: "file://../ai-architecture-charts/aws-compatible-storage/helm"
+    condition: aws-compatible-storage.enabled
 ```
 
 ```bash
@@ -302,9 +306,9 @@ helm dependency update
 **Minimal values** (predictable DNS + OpenShift routes):
 
 ```yaml
-object-storage:
+aws-compatible-storage:
   enabled: true
-  fullnameOverride: object-storage   # or "s4" for short DNS
+  fullnameOverride: aws-compatible-storage   # or "s4" for short DNS
   image:
     repository: quay.io/rh-aiservices-bu/s4
     tag: "0.3.2"
@@ -326,7 +330,7 @@ object-storage:
       size: 10Gi
 
 # Parent-owned bucket list (not part of the subchart)
-objectStorageBuckets:
+awsCompatibleStorageBuckets:
   create: true
   names:
     - zenml-artifacts           # use this quickstart’s real bucket names
@@ -337,7 +341,7 @@ jobImages:
   shell: registry.redhat.io/ubi9/ubi-minimal:latest
 ```
 
-Add parent helpers ([§12](#12-parent-chart-helpers-for-dns--secret)). Secret name with `fullnameOverride: object-storage`: **`object-storage-credentials`**. With `fullnameOverride: s4`: **`s4-credentials`**.
+Add parent helpers ([§12](#12-parent-chart-helpers-for-dns--secret)). Secret name with `fullnameOverride: aws-compatible-storage`: **`aws-compatible-storage-credentials`**. With `fullnameOverride: s4`: **`s4-credentials`**.
 
 ### Phase 5: Rewire application and chart consumers
 
@@ -349,7 +353,7 @@ Add parent helpers ([§12](#12-parent-chart-helpers-for-dns--secret)). Secret na
 - [ ] 5. Replace mc init / bootstrap with UBI Python + boto3
 - [ ] 6. Path-style addressing if the client needs it; region us-east-1
 - [ ] 7. Bucket bootstrap Job — Phase 5b
-- [ ] 8. .env.example / stack_config — S4_* / OBJECT_STORAGE_* vars; rename store ids if approved
+- [ ] 8. .env.example / stack_config — S4_* / AWS_COMPATIBLE_STORAGE_* vars; rename store ids if approved
 - [ ] 9. lakeFS / health waits: /minio/health/* → http://<fullname>:5000/api
 - [ ] 10. Validate scripts: deployment/<fullname>, pvc/<fullname>-data, bootstrap Job, routes <fullname> + <fullname>-api
 ```
@@ -374,9 +378,9 @@ Wire to `http://localhost:7480` (or compose service DNS) with demo keys only. Re
 ### Phase 7: Docs, Makefile, verify
 
 ```
-- [ ] 1. README / AGENTS — MinIO → object-storage (S4); link ai-architecture-charts object-storage + upstream s4; UI :5000, S3 :7480, Routes {fullname} / {fullname}-api
+- [ ] 1. README / AGENTS — MinIO → aws-compatible-storage (S4); link ai-architecture-charts aws-compatible-storage + upstream s4; UI :5000, S3 :7480, Routes {fullname} / {fullname}-api
 - [ ] 2. Diagrams — Mermaid preferred
-- [ ] 3. Makefile — drop minio-* targets; add logs-object-storage / logs-s4 if useful (Makefile-wrapped)
+- [ ] 3. Makefile — drop minio-* targets; add logs-aws-compatible-storage / logs-s4 if useful (Makefile-wrapped)
 - [ ] 4. verify-deploy / validate-stack — UI `/api`, Route admitted, bootstrap Job complete
 - [ ] 5. Design / pipeline notes under .rhoai-qs/<slug>/ if present
 ```
@@ -387,7 +391,7 @@ Wire to `http://localhost:7480` (or compose service DNS) with demo keys only. Re
 helm dependency update deploy/helm/<slug>/
 helm lint deploy/helm/<slug>
 helm template <release> deploy/helm/<slug> -f deploy/helm/<slug>/values.yaml \
-  | grep -EIin 'object-storage|s4|minio|7480|9000|minio/mc|docker.io' || true
+  | grep -EIin 'aws-compatible-storage|object-storage|s4|minio|7480|9000|minio/mc|docker.io' || true
 helm unittest deploy/helm/<slug>   # when tests exist
 make lint test helm-lint helm-template helm-test   # when targets exist
 ```
@@ -395,21 +399,22 @@ make lint test helm-lint helm-template helm-test   # when targets exist
 Optional: lint/unittest the shared chart itself when changing it:
 
 ```bash
-helm lint ./object-storage/helm
-helm unittest ./object-storage/helm
+helm lint ./aws-compatible-storage/helm
+helm unittest ./aws-compatible-storage/helm
 ```
 
-Rendered manifests must include object-storage Deployment/Service/Routes and **no** MinIO Deployment/StatefulSet / `quay.io/minio`. Recommend **`rh-qs-verify-deploy`**.
+Rendered manifests must include aws-compatible-storage Deployment/Service/Routes and **no** MinIO Deployment/StatefulSet / `quay.io/minio`. Residual `object-storage` strings should be limited to DSPA CR fields or intentional historical notes. Recommend **`rh-qs-verify-deploy`**.
 
 ## Rules
 
 - **Agents never run `oc`/`kubectl`** for routine work — Helm/Makefile only (`rh-qs-secure`)
 - **Never commit** production `auth.password`, S3 secret keys, or cluster Route hostnames
-- **Do not** leave MinIO and object-storage both enabled for the same workload unless dual-store is requested
-- **Do not** vendor `rh-aiservices-bu/s4/charts/s4` into the quickstart — use ai-architecture-charts `object-storage`
+- **Do not** leave MinIO and aws-compatible-storage both enabled for the same workload unless dual-store is requested
+- **Do not** vendor `rh-aiservices-bu/s4/charts/s4` into the quickstart — use ai-architecture-charts `aws-compatible-storage`
+- **Do not** keep the former chart name `object-storage` as a Helm dependency once migrating (rename to `aws-compatible-storage`)
 - Keep S3 API in-cluster (`route.s3Api.enabled: false`) unless external registration needs it
 - When `auth.enabled: true`, always set `auth.username` and `auth.password`
-- Pin object-storage chart version + S4 image tag; later bumps via **`rh-qs-bump-versions`**
+- Pin aws-compatible-storage chart version + S4 image tag; later bumps via **`rh-qs-bump-versions`**
 - Prefer **podman** over docker in docs
 - Prefer **OpenShift** / `oc` wording in docs; agents still do not run cluster commands for routine work
 - **Never** ship Jobs on `quay.io/minio/mc` or Docker Hub images
@@ -419,26 +424,27 @@ Rendered manifests must include object-storage Deployment/Service/Routes and **n
 ## Checklist
 
 - [ ] MinIO removed (subchart and/or hand-rolled templates) — no render
-- [ ] `object-storage` dependency from ai-architecture-charts (`Chart.lock` + packaged chart); image tag + chart version pinned
-- [ ] `fullnameOverride` chosen (`object-storage` or `s4`); parent helpers present
+- [ ] `aws-compatible-storage` dependency from ai-architecture-charts (`Chart.lock` + packaged chart); image tag + chart version pinned
+- [ ] No leftover `object-storage` Helm dependency / packaged chart (DSPA `objectStorage` CR fields OK)
+- [ ] `fullnameOverride` chosen (`aws-compatible-storage` or `s4`); parent helpers present
 - [ ] Consumers use `{fullname}-credentials` + port **7480** (FQDN for DSPA if present)
 - [ ] External S3 (if needed) uses Route **`{fullname}-api`** and `route.s3Api.enabled: true`
 - [ ] Bucket bootstrap = parent regular Job + UBI Python/boto3 (+ smoke test when prior Job had one)
 - [ ] KServe/init `mc` replaced with boto3
 - [ ] Bootstrap/validate scripts wait on S4 UI `/api` (not `/minio/health/*`)
-- [ ] README / diagrams / `.env.example` describe object-storage / S4 (including PNGs)
+- [ ] README / diagrams / `.env.example` describe aws-compatible-storage / S4 (including PNGs)
 - [ ] `helm lint` + `helm template` (+ unittest) clean; verify-deploy recommended
 
 ## Output
 
-- Updated Helm chart (no MinIO; `object-storage` subchart + parent bootstrap Job)
+- Updated Helm chart (no MinIO; `aws-compatible-storage` subchart + parent bootstrap Job)
 - Updated app / script / env wiring
 - Updated README / architecture mentions
 - Short summary: `fullnameOverride`, endpoints (in-cluster vs Route), Secret name, auth, bootstrap Job, any leftover `MINIO_*` aliases
 
 ## Related
 
-- Shared chart: [ai-architecture-charts/object-storage](https://github.com/rh-ai-quickstart/ai-architecture-charts/tree/main/object-storage) — [README](https://github.com/rh-ai-quickstart/ai-architecture-charts/blob/main/object-storage/README.md), [values.yaml](https://github.com/rh-ai-quickstart/ai-architecture-charts/blob/main/object-storage/helm/values.yaml)
+- Shared chart: [ai-architecture-charts/aws-compatible-storage](https://github.com/rh-ai-quickstart/ai-architecture-charts/tree/main/aws-compatible-storage) — [README](https://github.com/rh-ai-quickstart/ai-architecture-charts/blob/main/aws-compatible-storage/README.md), [values.yaml](https://github.com/rh-ai-quickstart/ai-architecture-charts/blob/main/aws-compatible-storage/helm/values.yaml)
 - Upstream runtime: [rh-aiservices-bu/s4](https://github.com/rh-aiservices-bu/s4) — [Deployment docs](https://github.com/rh-aiservices-bu/s4/tree/main/docs/deployment)
 - Inverse (add MinIO): [rh-qs-deploy/references/helm-minio.md](../rh-qs-deploy/references/helm-minio.md)
 - **`rh-qs-secure`** — no raw cluster commands
