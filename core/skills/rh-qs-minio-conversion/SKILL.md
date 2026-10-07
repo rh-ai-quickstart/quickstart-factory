@@ -57,7 +57,7 @@ Inside the quickstart repo — typically `.rhoai-qs/<slug>/` after scaffold, or 
 4. Rewires consumers to the S3 API (`:7480`) and `{fullname}-credentials`
 5. Adds a **regular** bucket bootstrap Job in the **parent** chart (UBI Python + boto3 — no `minio/mc`, no Docker Hub)
 6. Updates READMEs, env examples, scripts, diagrams (MinIO → aws-compatible-storage / S4)
-7. Verifies with `helm lint` / `helm template` / chart unit tests; recommend **`rh-qs-verify-deploy`**
+7. Verifies with `helm lint` / `helm template` / chart unit tests; recommend **`rh-qs-debug-and-deploy`** (deploy + test + debug/fix for conversion gaps — e.g. Loki bundled MinIO edge cases)
 
 ## Prerequisites
 
@@ -381,7 +381,7 @@ Wire to `http://localhost:7480` (or compose service DNS) with demo keys only. Re
 - [ ] 1. README / AGENTS — MinIO → aws-compatible-storage (S4); link ai-architecture-charts aws-compatible-storage + upstream s4; UI :5000, S3 :7480, Routes {fullname} / {fullname}-api
 - [ ] 2. Diagrams — Mermaid preferred
 - [ ] 3. Makefile — drop minio-* targets; add logs-aws-compatible-storage / logs-s4 if useful (Makefile-wrapped)
-- [ ] 4. verify-deploy / validate-stack — UI `/api`, Route admitted, bootstrap Job complete
+- [ ] 4. rh-qs-debug-and-deploy / validate-stack — UI `/api`, Route admitted, bootstrap Job complete; debug conversion gaps if deploy fails
 - [ ] 5. Design / pipeline notes under .rhoai-qs/<slug>/ if present
 ```
 
@@ -403,7 +403,7 @@ helm lint ./aws-compatible-storage/helm
 helm unittest ./aws-compatible-storage/helm
 ```
 
-Rendered manifests must include aws-compatible-storage Deployment/Service/Routes and **no** MinIO Deployment/StatefulSet / `quay.io/minio`. Residual `object-storage` strings should be limited to DSPA CR fields or intentional historical notes. Recommend **`rh-qs-verify-deploy`**.
+Rendered manifests must include aws-compatible-storage Deployment/Service/Routes and **no** MinIO Deployment/StatefulSet / `quay.io/minio`. Residual `object-storage` strings should be limited to DSPA CR fields or intentional historical notes. Recommend **`rh-qs-debug-and-deploy`** so cluster deploy, smoke tests, and conversion-gap fixes (e.g. Loki bundled MinIO) run in one pass.
 
 ## Rules
 
@@ -433,7 +433,7 @@ Rendered manifests must include aws-compatible-storage Deployment/Service/Routes
 - [ ] KServe/init `mc` replaced with boto3
 - [ ] Bootstrap/validate scripts wait on S4 UI `/api` (not `/minio/health/*`)
 - [ ] README / diagrams / `.env.example` describe aws-compatible-storage / S4 (including PNGs)
-- [ ] `helm lint` + `helm template` (+ unittest) clean; verify-deploy recommended
+- [ ] `helm lint` + `helm template` (+ unittest) clean; **`rh-qs-debug-and-deploy`** recommended
 
 ## Output
 
@@ -448,5 +448,5 @@ Rendered manifests must include aws-compatible-storage Deployment/Service/Routes
 - Upstream runtime: [rh-aiservices-bu/s4](https://github.com/rh-aiservices-bu/s4) — [Deployment docs](https://github.com/rh-aiservices-bu/s4/tree/main/docs/deployment)
 - Inverse (add MinIO): [rh-qs-deploy/references/helm-minio.md](../rh-qs-deploy/references/helm-minio.md)
 - **`rh-qs-secure`** — no raw cluster commands
-- **`rh-qs-verify-deploy`** — post-migration cluster check
+- **`rh-qs-debug-and-deploy`** — post-migration cluster deploy, test, and debug/fix (preferred over verify-deploy alone for conversion gaps)
 - **`rh-qs-bump-versions`** — later dependency / image bumps
