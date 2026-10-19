@@ -1,0 +1,119 @@
+{
+  "llama-stack": {
+    "description": "Comprehensive AI orchestration platform that provides a unified API for multiple model providers, safety shields, and AI agent capabilities.",
+    "provides": [
+      "Multi-provider model support (local, remote, VertexAI)",
+      "Safety shields with Llama Guard and other safety models",
+      "AI agent capabilities with persistent memory",
+      "Automatic model discovery and URL generation"
+    ],
+    "use_when": "Comprehensive AI orchestration platform needed"
+  },
+  "ogx-ai": {
+    "description": "Successor chart providing orchestration with OpenAI-compatible APIs, multi-provider model support, and MCP-style tool integration.",
+    "provides": [
+      "OpenAI-compatible agentic API server",
+      "Multi-provider model support (local, remote, VertexAI)",
+      "Content moderation via OpenAI-compatible /v1/moderations endpoint",
+      "AI agent capabilities with persistent memory",
+      "Automatic model discovery and URL generation",
+      "Supersedes llama-stack for new deployments"
+    ],
+    "use_when": "Agentic orchestration with OpenAI compatibility needed"
+  },
+  "llm-service": {
+    "description": "High-performance model serving using vLLM runtime with OpenShift AI/KServe integration supporting GPU and CPU deployment modes.",
+    "provides": [
+      "vLLM-based model serving with OpenAI-compatible API",
+      "Support for any vLLM-compatible models and sizes",
+      "GPU/CPU deployment flexibility",
+      "Tool calling and function execution support",
+      "OpenShift AI/KServe integration"
+    ],
+    "use_when": "On-cluster GPU model serving required"
+  },
+  "pgvector": {
+    "description": "PostgreSQL with pgvector extension enabling high-performance vector database capabilities for embeddings in AI/ML applications.",
+    "provides": [
+      "Vector similarity search (cosine, L2, inner product)",
+      "Multiple index types (IVFFlat, HNSW)",
+      "Support for various embedding dimensions",
+      "ACID compliance with PostgreSQL reliability"
+    ],
+    "use_when": "Vector database for RAG/semantic retrieval needed"
+  },
+  "minio": {
+    "description": "S3-compatible object storage server for documents, models, and data in AI/ML pipelines with scalable storage and web console management.",
+    "provides": [
+      "S3-compatible API",
+      "Web-based management console",
+      "Bucket policies and lifecycle management",
+      "Sample file upload functionality"
+    ],
+    "use_when": "Object storage for documents/models/data needed"
+  },
+  "oracle-db": {
+    "description": "Oracle Database Free 23ai with AI Vector features providing enterprise-grade database capabilities with built-in vector operations.",
+    "provides": [
+      "Native vector operations and similarity search",
+      "JSON duality and graph analytics",
+      "Enterprise database reliability",
+      "AI-optimized storage and indexing",
+      "TPC-DS automated data population via Kubernetes Job",
+      "Configurable scale factors and schema management",
+      "Automated security configuration for AI MCP server integration"
+    ],
+    "use_when": "Enterprise database with AI vector features needed"
+  },
+  "ingestion-pipeline": {
+    "description": "Comprehensive data ingestion pipeline processing documents from various sources and storing vector embeddings for semantic search and RAG.",
+    "provides": [
+      "Multi-source data ingestion (S3/MinIO, GitHub, URLs)",
+      "Document chunking and embedding generation",
+      "REST API for pipeline management",
+      "Integration with vector databases"
+    ],
+    "use_when": "Automated document ingestion and embedding pipeline needed"
+  },
+  "configure-pipeline": {
+    "description": "Jupyter notebook environment for RAG configuration and pipeline setup with interactive tools and MinIO integration for data access.",
+    "provides": [
+      "Pre-configured Jupyter environment",
+      "RAG pipeline configuration tools",
+      "MinIO integration for data access",
+      "Template and configuration management"
+    ],
+    "use_when": "Interactive RAG configuration and pipeline setup needed"
+  },
+  "mcp-servers": {
+    "description": "Model Context Protocol servers providing external tools and capabilities to AI models for interacting with external systems and APIs.",
+    "provides": [
+      "Weather information services",
+      "Server-Sent Events (SSE) endpoints",
+      "Custom tool development framework",
+      "Integration with LlamaStack and OGX agents"
+    ],
+    "use_when": "External tools and capabilities for AI agents needed"
+  },
+  "oracle-sqlcl": {
+    "description": "MCP server exposing Oracle SQLcl capabilities to AI agents via Toolhive, enabling database tooling and interactions from AI platforms.",
+    "provides": [
+      "Execute SQL/PLSQL against Oracle databases via Model Context Protocol",
+      "Integrates with Toolhive Operator (CRDs and operator managed as chart dependencies)",
+      "Oracle connection managed via Kubernetes secrets and configurable service"
+    ],
+    "use_when": "Oracle database tooling for AI agents needed"
+  },
+  "keycloak": {
+    "description": "Identity and access management solution providing authentication and authorization for AI applications via OAuth2, OpenID Connect, and SAML.",
+    "provides": [
+      "Official Keycloak container images",
+      "OAuth2, OpenID Connect, and SAML protocols",
+      "Built-in PostgreSQL database (via pgvector subchart) or external database support",
+      "OpenShift Routes and Kubernetes Ingress support",
+      "Production-ready configuration with health checks and metrics",
+      "Flexible authentication and authorization policies"
+    ],
+    "use_when": "Identity and access management for AI applications needed"
+  }
+}
