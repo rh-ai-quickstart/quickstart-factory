@@ -3,12 +3,15 @@
 Reference repo: `it-self-service-agent/.github/workflows/`
 
 Use this table to decide which files to copy or adapt for a new quickstart. Rename workflows to match the product; keep **one concern per file**.
+The Makefile column shows patterns from the reference repository. Select only
+the checks and targets supported by the quickstart's Makefile and dependency
+manager; do not add uv or lockfile steps just because they appear here.
 
 ## Pull request — fast feedback (`pull_request`)
 
 | File | Workflow name | Jobs | Makefile / notes |
 |------|---------------|------|------------------|
-| `pr-checks.yml` | Pull Request - Quality Checks & Unit Tests | `code-quality-check`, `helm-export-validate`, `pull-request-tests` | `check-uv-version`, `check-lockfiles`, `check-requirements`, `deps-all`, flake8/black/isort/mypy or `make lint`, `helm-export-validate-demo`, `test-all` |
+| `pr-checks.yml` | Pull Request - Quality Checks & Unit Tests | `code-quality-check`, `helm-export-validate`, `pull-request-tests` | Dependency/version checks supported by this quickstart, `deps-all`, flake8/black/isort/mypy or `make lint`, `helm-export-validate-demo`, `test-all` |
 | `pr-pip-install-build.yml` | Pull Request - Build Test (pip install method) | `build-test-pip-install` | Same Kind path with `use_pip_install: "true"` on kind action |
 | `pr-branch-check.yml` | Require dev branch for main PRs | `validate-pr-branch` | Inline bash: source must be `dev` or `dev-<hex>` from same repo |
 
@@ -34,10 +37,9 @@ with:
 
 | File | Trigger | Purpose |
 |------|---------|---------|
-| `build-and-push.yaml` | `push` to `main`, `dev` | `if: github.repository_owner == 'rh-ai-quickstart'`; version from `make version`; multi-tag push to `quay.io/rh-ai-quickstart` |
-| `build-and-push-manual.yaml` | `workflow_dispatch` | Manual image build |
-| `create-dev-to-main-pr.yaml` | `workflow_dispatch` | GitHub App token; version sync Makefile ↔ Chart.yaml ↔ values image tags; temp branch `dev-<short-sha>` |
-| `create-dev-version-bump-pr.yml` | `workflow_dispatch` | Automated version bump on dev |
+| `build-and-push.yaml` | `push` to `main`, `dev`; `workflow_dispatch` | Self-contained workflow from [the local build-and-push reference](./build-and-push-workflow.yaml); uses `make version`, `make build-all-images`, and `make push-all-images`; manual dispatch can set `FORCE_BUILD_ALL=TRUE` to override the optional image-needed target; excludes forks |
+| `create-dev-to-main-pr.yml` | `workflow_dispatch` | GitHub App token; runs `scripts/bump_release.py --verify`, requires dev version to be later than main, and creates temp branch `dev-<short-sha>` |
+| `create-dev-to-main-bump-r.yml` | `workflow_dispatch` | Bumps the dev release version (or accepts a requested higher version) and opens or updates a GitHub App-authenticated PR into `dev` |
 
 ## Scheduled / nightly
 
@@ -62,4 +64,4 @@ Full action inventory, skeletons, and the namespace/ServiceAccount provisioning 
 | API + DB integration on Kind | `pr-e2e-tests.yml` + `kind` action |
 | LLM quality / RAG evals | `pr-e2e-tests.yml` + `pr-evaluation-check.yml` + eval artifact steps |
 | Published images | `build-and-push.yaml` |
-| dev/main git flow | `pr-branch-check.yml` + `create-dev-to-main-pr.yaml` |
+| dev/main git flow | `pr-branch-check.yml` + `create-dev-to-main-bump-r.yml` + `create-dev-to-main-pr.yml` |

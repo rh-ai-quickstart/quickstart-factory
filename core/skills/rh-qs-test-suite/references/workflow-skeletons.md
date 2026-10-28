@@ -1,8 +1,12 @@
 # Workflow skeletons
 
 Trimmed patterns from `it-self-service-agent`. Replace names, makes, and namespaces for `<slug>`.
+These are examples, not a universal contract: the PR-checks example below is
+for a uv-based quickstart. Inspect the quickstart's Makefile and dependency
+manifests first, and adapt setup and targets to that repository as described in
+the PR-check adaptation guidance in `SKILL.md`.
 
-## Shared PR preamble
+## PR trigger and concurrency preamble
 
 ```yaml
 on:
@@ -13,24 +17,26 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
-env:
-  UV_VERSION: "0.8.9"   # must match Makefile
 ```
 
-## pr-checks.yml — quality + unit + helm
+## pr-checks.yml — uv quickstart with matching Make targets
 
 ```yaml
 name: Pull Request - Quality Checks & Unit Tests
 
+env:
+  UV_VERSION: "0.8.9" # replace with the quickstart's Makefile value
+
 jobs:
   code-quality-check:
+    name: Code Quality Check
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - uses: astral-sh/setup-uv@v5
+      - uses: astral-sh/setup-uv@v9.0.0
         with:
           version: ${{ env.UV_VERSION }}
       - run: make check-uv-version
@@ -39,9 +45,10 @@ jobs:
       - run: make lint
 
   helm-export-validate:
+    name: Helm export validation
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: azure/setup-helm@v4
         with:
           version: v3.17.0
@@ -52,10 +59,11 @@ jobs:
           HF_TOKEN: mock_hf_token_for_ci
 
   pull-request-tests:
+    name: Run unit-tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v5
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v9.0.0
         with:
           version: ${{ env.UV_VERSION }}
       - run: make deps-all
@@ -173,48 +181,15 @@ jobs:
 
 ## build-and-push.yaml
 
-```yaml
-name: Build and push images
+Use the skill-local [build-and-push workflow reference](./build-and-push-workflow.yaml). It combines push triggers for `main` and `dev` with manual dispatch, checks the repository owner and fork status, and calls the quickstart's Makefile build and push targets. Adapt the registry and toolchain steps to the quickstart.
 
-on:
-  push:
-    branches: [main, dev]
+## create-dev-to-main-pr.yml
 
-concurrency:
-  group: ${{ github.workflow }}-${{ github.sha }}
-  cancel-in-progress: true
+Use the skill-local [promotion workflow reference](./create-dev-to-main-pr-workflow.yml), [release helper](./bump_release.py), and [release manifest](./bump-release.manifest.json). Copy the helper and manifest into `scripts/`, then adapt the manifest to every file that must carry the release version. The workflow verifies the target dev commit and `origin/main`, requires the dev version to be greater, creates `dev-<short-sha>`, and opens the promotion PR.
 
-env:
-  REGISTRY: quay.io/rh-ai-quickstart
-  UV_VERSION: "0.8.9"
-  PYTHON_VERSION: "3.12"
+## create-dev-to-main-bump-r.yml
 
-jobs:
-  build-and-push:
-    if: github.repository_owner == 'rh-ai-quickstart'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - id: version
-        run: |
-          BASE_VERSION=$(make version)
-          # tag logic: main → latest, dev → dev tag, etc.
-      - uses: docker/setup-buildx-action@v3
-      - uses: docker/login-action@v3
-        with:
-          registry: quay.io
-          username: ${{ secrets.QUAY_USERNAME }}
-          password: ${{ secrets.QUAY_PASSWORD }}
-      - uses: astral-sh/setup-uv@v6
-        with:
-          version: ${{ env.UV_VERSION }}
-          python-version: ${{ env.PYTHON_VERSION }}
-      - run: |
-          for version in ${{ steps.version.outputs.versions }}; do
-            VERSION="${version}" make build-all-images
-            VERSION="${version}" make push-all-images
-          done
-```
+Use the skill-local [dev version-bump workflow reference](./create-dev-to-main-bump-r-workflow.yml) with the same `scripts/bump_release.py` helper and `scripts/bump-release.manifest.json`. It is manually dispatched, reads the current release version on `dev`, defaults to the next patch version (or accepts a requested higher version), updates the manifest paths, verifies alignment, and opens or updates a PR into `dev`. The separate `create-dev-to-main-pr.yml` workflow promotes the resulting dev changes to `main`.
 
 ## Evaluations artifact tarball (reusable snippet)
 
