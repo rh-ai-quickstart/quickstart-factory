@@ -81,7 +81,7 @@ If nothing is found, record "No cluster-admin requirement detected." If somethin
 
 ### Step 5: Detect the branch model
 
-Determine the default branch (normally `main`) and whether a second long-lived branch exists (`dev`, `development`, or `develop` — check for all three; use whichever exists). If no second branch exists, you will generate only `nightly-main.yml` in Step 9 and note in your report that the dev nightly was skipped.
+Determine the default branch and whether a second long-lived branch exists (`dev`, `development`, or `develop` — check for all three; use whichever exists) from Git metadata when it is available. If no Git metadata is available, assume `main` is the only branch; do not ask the user in this case. If no second branch exists, generate only `nightly-main.yml` in Step 9, use `dev: null` in the manifest, and note in your report that Git metadata was unavailable and the main-only branch model was assumed.
 
 ### Step 6: Copy composite actions from quickstart-ci-testing
 
@@ -89,6 +89,14 @@ Shallow-clone `https://github.com/rh-ai-quickstart/quickstart-ci-testing` to a t
 
 - If a given action directory (e.g. `.github/actions/setup-and-deploy/`) does not exist here → copy it in full.
 - If it already exists here → diff it against the freshly cloned source. If identical, skip and note "already up to date." If different, show the user the diff and ask whether to overwrite, keep the existing version, or view more context before deciding. Record the outcome per action.
+
+After copying the action tree, inspect every copied action for references to
+files outside `.github/actions/`, including paths resolved through
+`${GITHUB_ACTION_PATH}`. Copy those companion files from the same repository to
+the identical repository-relative path, applying the same create/diff-and-ask
+rule. In particular, `setup-kind/action.yaml` invokes
+`scripts/ci/kind-with-registry.sh`, so include that file whenever the shared
+action tree is copied. Verify each referenced file exists in the quickstart.
 
 Clean up the temp clone when done.
 
@@ -158,6 +166,9 @@ files:
   actions_copied: [...]
   actions_skipped_identical: [...]
   actions_updated: [...]
+  companion_files_copied: [...]
+  companion_files_skipped_identical: [...]
+  companion_files_updated: [...]
   workflows_created: [...]
   workflows_skipped_or_updated: [...]
   provisioning_script: scripts/ci/setup-nightly-namespace.sh
@@ -171,6 +182,19 @@ Summarize what was created/updated/skipped, then always include:
 2. **Toolchain setup steps used**, and their source — flag any that fell back to a tool's default version because nothing in the repo pinned one, so the user can confirm it's correct.
 3. **Required secrets/variables**, names and explanations only, split into Secrets and Variables, plus any "found but unconfirmed" entries — never invent or ask for actual values.
 4. **Next steps**: run `scripts/ci/setup-nightly-namespace.sh` against the target cluster, set the printed `PROD_TOKEN`/`PROD_SERVER` plus every other listed secret/variable in GitHub, then trigger `test-<slug>.yml` via `workflow_dispatch` once to confirm it's green before relying on the schedule.
+
+## Verification
+
+Before reporting completion:
+
+1. Confirm every file you claim to have created or updated actually exists at
+   its declared path under the quickstart repository root.
+2. Confirm the reusable workflow, at least one nightly caller, the provisioning
+   script, and the nightly manifest are present.
+3. Confirm no unrelated file was created, updated, or deleted.
+4. Parse every generated YAML file and run `bash -n` on the provisioning script.
+5. If any required artifact is missing or any check fails, report failure rather
+   than claiming success.
 
 ## Output
 

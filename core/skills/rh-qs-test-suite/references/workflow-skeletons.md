@@ -1,8 +1,12 @@
 # Workflow skeletons
 
 Trimmed patterns from `it-self-service-agent`. Replace names, makes, and namespaces for `<slug>`.
+These are examples, not a universal contract: the PR-checks example below is
+for a uv-based quickstart. Inspect the quickstart's Makefile and dependency
+manifests first, and adapt setup and targets to that repository as described in
+the PR-check adaptation guidance in `SKILL.md`.
 
-## Shared PR preamble
+## PR trigger and concurrency preamble
 
 ```yaml
 on:
@@ -13,24 +17,28 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
-env:
-  UV_VERSION: "0.8.9"   # must match Makefile
 ```
 
-## pr-checks.yml — quality + unit + helm
+## pr-checks.yml — uv quickstart with matching Make targets
 
 ```yaml
 name: Pull Request - Quality Checks & Unit Tests
 
+env:
+  UV_VERSION: "0.8.9" # replace with the quickstart's Makefile value
+
 jobs:
   code-quality-check:
+    name: Code Quality Check
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.pull_request.base.ref || github.ref }}
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - uses: astral-sh/setup-uv@v5
+      - uses: astral-sh/setup-uv@v9.0.0
         with:
           version: ${{ env.UV_VERSION }}
       - run: make check-uv-version
@@ -39,9 +47,10 @@ jobs:
       - run: make lint
 
   helm-export-validate:
+    name: Helm export validation
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: azure/setup-helm@v4
         with:
           version: v3.17.0
@@ -52,17 +61,42 @@ jobs:
           HF_TOKEN: mock_hf_token_for_ci
 
   pull-request-tests:
+    name: Run unit-tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v5
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v9.0.0
         with:
           version: ${{ env.UV_VERSION }}
       - run: make deps-all
       - run: make test-all
 ```
 
-## pr-e2e-tests.yml — Kind + evals (`pull_request_target`)
+## pr-e2e-tests.yml — PR E2E (`pull_request_target`)
+
+Before generating this workflow, copy the shared actions from `quickstart-ci-testing` into `.github/actions/` using the same shallow-clone/diff/prompt process as nightly testing. Also copy repository-relative companion files referenced by those actions. The shared `setup-kind/action.yaml` invokes `scripts/ci/kind-with-registry.sh` from the consuming repository root, so a Kind workflow must include that script at the same path.
+
+The shared `clone-quickstart` action runs `git clone --branch`, so `setup-and-deploy.ref` must be a branch or tag. Use `github.event.pull_request.head.ref` for PRs and `github.ref_name` for other events. Do not pass `github.event.pull_request.head.sha` or `github.sha`; the clone action cannot check out a bare commit SHA.
+
+Use `make test-short-e2e` as the required PR E2E test target. Include `make test-short-eval` only when that target exists in the quickstart’s `Makefile`; if it does not exist, do not add it to the workflow.
+
+Before generating `pr-e2e-tests.yml`, determine what the quickstart deploys and uses, then classify its runtime compatibility:
+
+1. Inspect the architecture spec, deployment contract, Helm chart/subcharts, values, Make targets, scripts, and existing workflows.
+2. Identify OpenShift-only requirements such as `Route`, `ImageStream`, `BuildConfig`, `DeploymentConfig`, `SecurityContextConstraints`, OpenShift AI custom resources, OpenShift operators, or external services reachable only through the target OpenShift cluster.
+3. Determine whether the workload can run unchanged in Kind, including its container images, storage, service discovery, ingress, credentials, and external dependencies.
+4. If the quickstart is OpenShift-only, use OpenShift with `use_kind: false` and the required cluster secrets. If the Makefile provides `build-all-images` and `push-all-images`, set `build_images: true`; the shared action provisions an ephemeral project registry, builds and pushes through `localhost:5001`, and deploys with the in-cluster registry address.
+5. If the quickstart can run in both OpenShift and Kind, use Kind with `use_kind: true` and `build_images: true` for PR E2E because it is isolated and does not require cluster secrets.
+6. If compatibility is ambiguous, ask the user instead of guessing.
+
+Always include `permissions: {contents: read}` and use a PR-safe concurrency group based on `github.event.pull_request.number || github.run_id`. For `pull_request_target`, checkout the trusted base branch before invoking local actions; pass the PR head repository and branch to `setup-and-deploy`. If the workflow uses OpenShift credentials, restrict the job to same-repository pull requests and validate required secrets before deployment.
+
+Set `persist-credentials: false` on the trusted-base checkout. For image builds,
+explicitly pass `build_images_command` and `push_images_command` mapped to
+existing Makefile targets rather than relying on action defaults. When
+`run-quickstart-tests` uploads results, set `upload_retention_days: 30`.
+Before reporting completion, verify every local action path and every
+repository-relative helper referenced by the copied actions exists.
 
 ```yaml
 name: Pull Request - Integration + End to End Tests
@@ -73,6 +107,13 @@ on:
   workflow_dispatch:
   schedule:
     - cron: '0 2 * * *'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
 
 env:
   UV_VERSION: "0.8.9"
@@ -90,57 +131,52 @@ jobs:
 
       - uses: actions/checkout@v5
         with:
-          ref: ${{ github.event.pull_request.head.sha }}
+          ref: ${{ github.event.pull_request.base.ref || github.ref }}
+          persist-credentials: false
 
-      - uses: ./.github/actions/prepare-runner
-        with:
-          swap-storage: 'false'
-
+      # Adapt or remove these toolchain steps to match the quickstart.
       - uses: astral-sh/setup-uv@v6
         with:
           version: ${{ env.UV_VERSION }}
           python-version: ${{ env.PYTHON_VERSION }}
 
-      - run: |
-          make oc
-          echo "$GITHUB_WORKSPACE/bin" >> $GITHUB_PATH
-
-      - uses: ./.github/actions/kind
+      - name: Setup and deploy
+        uses: ./.github/actions/setup-and-deploy
+        timeout-minutes: 15
         with:
+          repo_url: https://github.com/${{ github.event.pull_request.head.repo.full_name || github.repository }}
+          ref: ${{ github.event.pull_request.head.ref || github.ref_name }}
           namespace: ${{ env.E2E_NAMESPACE }}
-          llm: ${{ vars.LLM_INFERENCE }}
-          llm_id: ${{ vars.LLM_ID_INFERENCE }}
-          llm_url: ${{ vars.LLM_URL_INFERENCE }}
+          use_kind: true
+          build_images: true
+          kind_pre_deploy_command: "make helm-depend"
+          deploy_command: "make helm-install-test"
+          # Map these to the build and push targets present in this Makefile.
+          build_images_command: "make build-all-images"
+          push_images_command: "make push-all-images"
         env:
           LLM_API_TOKEN: ${{ secrets.LLM_API_TOKEN_INFERENCE }}
 
-      - run: kubectl config set-context --current --namespace=${{ env.E2E_NAMESPACE }}
-
-      - run: make test-integration NAMESPACE=${{ env.E2E_NAMESPACE }}
-
-      - run: make sync-evaluations
-
-      - run: make test-short-eval
-        if: always()
+      - name: Run tests
+        uses: ./.github/actions/run-quickstart-tests
+        timeout-minutes: 30
+        with:
+          pre_test_command: "make sync-evaluations"
+          test_command: "make test-short-e2e && make test-short-eval"
+          upload_results: "evaluations/results"
+          upload_retention_days: 30
         env:
           LLM_URL: ${{ vars.LLM_URL_EVAL }}
           LLM_API_TOKEN: ${{ secrets.LLM_API_TOKEN_EVAL }}
 
-      - uses: ./.github/actions/inspect
-        if: failure()
-        with:
-          artifactPrefix: <slug>
-
-      - name: Upload evaluations artifact
+      - name: Cleanup
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: ./.github/actions/cleanup
         with:
-          name: evaluations-results-${{ github.run_id }}
-          path: evaluations-results-${{ github.run_id }}.tar.gz
-          retention-days: 30
+          cleanup_command: "make helm-uninstall"
 ```
 
-Add tarball creation step before upload (see `pr-e2e-tests.yml` in it-self-service-agent).
+Adapt only the quickstart-specific target names and environment mapping. Inspect the resolved Make targets to discover required application variables and secrets, then map them at step scope. A value required by both deployment and testing must appear in both the `setup-and-deploy` and `run-quickstart-tests` `env:` blocks. Keep the shared action names and copy behavior aligned with nightly testing. The shared `run-quickstart-tests` action handles the working directory and artifact upload through its `test_working_dir` and `upload_results` inputs; use those inputs for nonstandard paths and do not add a separate manual artifact step unless the action cannot represent the required behavior.
 
 ## pr-branch-check.yml — dev → main
 
@@ -173,48 +209,15 @@ jobs:
 
 ## build-and-push.yaml
 
-```yaml
-name: Build and push images
+Use the skill-local [build-and-push workflow reference](./build-and-push-workflow.yaml). It combines push triggers for `main` and `dev` with manual dispatch, checks the repository owner and fork status, and calls the quickstart's Makefile build and push targets. Adapt the registry and toolchain steps to the quickstart.
 
-on:
-  push:
-    branches: [main, dev]
+## create-dev-to-main-pr.yml
 
-concurrency:
-  group: ${{ github.workflow }}-${{ github.sha }}
-  cancel-in-progress: true
+Use the skill-local [promotion workflow reference](./create-dev-to-main-pr-workflow.yml), [release helper](./bump_release.py), and [release manifest](./bump-release.manifest.json). Copy the helper and manifest into `scripts/`, then adapt the manifest to every file that must carry the release version. The workflow verifies the target dev commit and `origin/main`, requires the dev version to be greater, creates `dev-<short-sha>`, and opens the promotion PR.
 
-env:
-  REGISTRY: quay.io/rh-ai-quickstart
-  UV_VERSION: "0.8.9"
-  PYTHON_VERSION: "3.12"
+## create-dev-to-main-bump-pr.yml
 
-jobs:
-  build-and-push:
-    if: github.repository_owner == 'rh-ai-quickstart'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - id: version
-        run: |
-          BASE_VERSION=$(make version)
-          # tag logic: main → latest, dev → dev tag, etc.
-      - uses: docker/setup-buildx-action@v3
-      - uses: docker/login-action@v3
-        with:
-          registry: quay.io
-          username: ${{ secrets.QUAY_USERNAME }}
-          password: ${{ secrets.QUAY_PASSWORD }}
-      - uses: astral-sh/setup-uv@v6
-        with:
-          version: ${{ env.UV_VERSION }}
-          python-version: ${{ env.PYTHON_VERSION }}
-      - run: |
-          for version in ${{ steps.version.outputs.versions }}; do
-            VERSION="${version}" make build-all-images
-            VERSION="${version}" make push-all-images
-          done
-```
+Use the skill-local [dev version-bump workflow reference](./create-dev-to-main-bump-pr-workflow.yml) with the same `scripts/bump_release.py` helper and `scripts/bump-release.manifest.json`. It is manually dispatched, reads the current release version on `dev`, defaults to the next patch version (or accepts a requested higher version), updates the manifest paths, verifies alignment, and opens or updates a PR into `dev`. The separate `create-dev-to-main-pr.yml` workflow promotes the resulting dev changes to `main`.
 
 ## Evaluations artifact tarball (reusable snippet)
 
